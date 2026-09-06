@@ -190,7 +190,7 @@ export function Result() {
               radius={parseInt(radius)} 
               pathOptions={{ fillColor: '#f59e0b', fillOpacity: 0.05, color: '#f59e0b', weight: 1, dashArray: '4 4' }} 
             />
-            {data.occurrences.map((occ: any, idx: number) => (
+            {(data.occurrences || []).map((occ: any, idx: number) => (
               <CircleMarker 
                 key={occ.id || idx} 
                 center={[occ.latitude, occ.longitude]} 
@@ -285,7 +285,7 @@ export function Result() {
               <div className="mt-4 p-4 bg-slate-800/30 rounded-xl border border-slate-700/50">
                 <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Detalhamento de "Outros"</h4>
                 <ul className="space-y-2">
-                  {Object.entries(data.statistics.othersBreakdown)
+                  {Object.entries(data.statistics?.othersBreakdown || {})
                     .sort(([, a], [, b]) => (b as number) - (a as number))
                     .slice(0, 10)
                     .map(([desc, count]) => (
@@ -322,7 +322,7 @@ export function Result() {
           <div>
             <span className="font-medium text-slate-400">Fontes processadas:</span>
             <ul className="list-disc pl-4 mt-2 space-y-1">
-              {data.dataSources.map((d: any) => (
+              {(data.dataSources || []).map((d: any) => (
                 <li key={d.id}>
                   {d.name} ({d.provider}) - Última atualização: {new Date(d.lastUpdatedAt).toLocaleDateString('pt-BR')}
                 </li>

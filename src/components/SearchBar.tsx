@@ -52,7 +52,7 @@ export function SearchBar({ className }: { className?: string }) {
       {suggestions.length > 0 && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-slate-800 rounded-xl shadow-2xl border border-slate-700 overflow-hidden z-50">
           <ul className="max-h-80 overflow-y-auto divide-y divide-slate-700/50">
-            {suggestions.map((item, idx) => (
+            {(suggestions || []).map((item, idx) => (
               <li key={idx}>
                 <button
                   onClick={() => handleSelect(item)}

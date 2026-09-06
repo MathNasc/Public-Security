@@ -1,5 +1,5 @@
 import { db } from "../db/index.js";
-import { occurrences, dataSources, importBatches } from "../db/schema.js";
+import { securityOccurrences, dataSources, dataImports } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 import { GeocodingService } from "./GeocodingService.js";
 import { RawCrimeRecord } from "../ingestion/ssp/normalizer.js";
@@ -32,14 +32,14 @@ export class DataIngestionService {
       
       // 1. Fetch existing SourceIDs to find duplicates
       const sourceIds = chunk.map(r => r.source_record_id);
-      const existing = await db.query.occurrences.findMany({
-        columns: { sourceId: true },
+      const existing = await db.query.securityOccurrences.findMany({
+        columns: { sourceRecordId: true },
         where: (occ, { eq, and, inArray }) => and(
-          eq(occ.source, sourceName),
-          inArray(occ.sourceId, sourceIds)
+          eq(occ.sourceId, sourceName),
+          inArray(occ.sourceRecordId, sourceIds)
         )
       });
-      const existingIds = new Set(existing.map(e => e.sourceId));
+      const existingIds = new Set(existing.map(e => e.sourceRecordId));
 
       for (const r of chunk) {
         if (existingIds.has(r.source_record_id)) {
@@ -88,8 +88,8 @@ export class DataIngestionService {
 
         valuesToInsert.push({
           id: crypto.randomUUID(),
-          source: sourceName,
-          sourceId: r.source_record_id,
+          sourceId: sourceName,
+          sourceRecordId: r.source_record_id,
           category: r.category,
           subcategory: r.subcategory,
           occurredAt: r.occurred_at ? new Date(r.occurred_at) : null,
@@ -101,32 +101,28 @@ export class DataIngestionService {
           geocodingConfidence: geoConf,
           geocodedAt: geocodedAt,
           originalAddress: r.original_address,
-          importBatchId: batchId,
           createdAt: new Date(),
+          updatedAt: new Date(),
         });
       }
 
       if (valuesToInsert.length > 0) {
-        await db.insert(occurrences).values(valuesToInsert);
+        await db.insert(securityOccurrences).values(valuesToInsert);
       }
     }
 
     console.log(`Finished ingestion. Inserted ${stats.valid_records} valid records.`);
     
     // Save Batch Stats
-    await db.insert(importBatches).values({
+    await db.insert(dataImports).values({
       id: batchId,
-      sourceName: sourceName,
-      filename: sourceInfo.filename || null,
-      totalRecords: stats.total_records,
-      validRecords: stats.valid_records,
-      rejectedRecords: stats.rejected_records,
-      withCoordinates: stats.with_coordinates,
-      withoutCoordinates: stats.without_coordinates,
-      duplicates: stats.duplicates,
-      geocoded: stats.geocoded,
+      sourceId: sourceName,
+      status: "SUCCESS",
       startedAt: new Date(),
-      completedAt: new Date(),
+      finishedAt: new Date(),
+      recordsInserted: stats.valid_records,
+      recordsRejected: stats.rejected_records,
+      createdAt: new Date(),
     });
 
     // Update Data Source Metadata
@@ -136,7 +132,7 @@ export class DataIngestionService {
     
     if (existingSource) {
       await db.update(dataSources).set({
-        lastUpdatedAt: new Date(),
+        lastAttempt: new Date(),
         recordsImported: (existingSource.recordsImported || 0) + stats.valid_records,
         status: "Ativo",
       }).where(eq(dataSources.id, existingSource.id));
@@ -148,7 +144,7 @@ export class DataIngestionService {
         description: sourceInfo.description,
         url: sourceInfo.url,
         coverage: sourceInfo.coverage,
-        lastUpdatedAt: new Date(),
+        lastAttempt: new Date(),
         recordsImported: stats.valid_records,
         status: "Ativo",
       });

@@ -1,3 +1,10 @@
+import { publicRouter } from './src/api/public.js';
+import { IngestionEngine } from './src/ingestion/core/IngestionEngine.js';
+import { SinespAdapter } from './src/ingestion/adapters/federal/sinesp/SinespAdapter.js';
+import { dataSources, dataImports, securityOccurrences, securityIndicators } from './src/db/schema.js';
+import { IbgeSyncService } from './src/ingestion/adapters/geographic/ibge/IbgeSyncService.js';
+import { geographicStates, geographicMunicipalities } from './src/db/schema.js';
+import { SspSpAdapter } from './src/ingestion/adapters/ssp-sp/SspSpAdapter.js';
 import express from "express";
 import cors from "cors";
 import path from "path";
@@ -5,52 +12,61 @@ import multer from "multer";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { db } from "./src/db/index.js";
-import { dataSources, occurrences, importBatches } from "./src/db/schema.js";
+import { dataSources, securityOccurrences, dataImports } from "./src/db/schema.js";
 import { getBoundingBox, haversineDistance } from "./src/lib/geo.js";
-import { and, gte, lte, asc, sql, isNotNull, isNull, desc } from "drizzle-orm";
+import { eq, and, gte, lte, asc, sql, isNotNull, isNull, desc } from "drizzle-orm";
 import { DataIngestionService } from "./src/services/DataIngestionService.js";
 import axios from "axios";
 import { importSspFile } from "./src/ingestion/ssp/importer.js";
+
+
+
+
 
 const app = express();
 const PORT = 3000;
 const upload = multer({ dest: 'uploads/' });
 
+app.use((req,res,next)=>{ console.log('REQ:', req.method, req.url); next(); });
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 
 // API Routes
 
+
+// Public API with Rate Limiting
+app.use('/api/public', publicRouter);
+
 app.get("/api/admin/data-quality", async (req, res) => {
   try {
     // Basic stats
-    const totalRecords = (await db.select({ count: sql`count(*)` }).from(occurrences))[0].count;
+    const totalRecords = (await db.select({ count: sql`count(*)` }).from(securityOccurrences))[0].count;
     
     // Coordinates
-    const withCoords = (await db.select({ count: sql`count(*)` }).from(occurrences).where(isNotNull(occurrences.latitude)))[0].count;
+    const withCoords = (await db.select({ count: sql`count(*)` }).from(securityOccurrences).where(isNotNull(securityOccurrences.latitude)))[0].count;
     const withoutCoords = totalRecords - withCoords;
     
     // Geocoding status
-    const geocoded = (await db.select({ count: sql`count(*)` }).from(occurrences).where(eq(occurrences.geocodingStatus, 'geocoded')))[0].count;
-    const geoFailed = (await db.select({ count: sql`count(*)` }).from(occurrences).where(eq(occurrences.geocodingStatus, 'failed')))[0].count;
-    const notEnoughData = (await db.select({ count: sql`count(*)` }).from(occurrences).where(eq(occurrences.geocodingStatus, 'not_enough_data')))[0].count;
+    const geocoded = (await db.select({ count: sql`count(*)` }).from(securityOccurrences).where(eq(securityOccurrences.geocodingStatus, 'geocoded')))[0].count;
+    const geoFailed = (await db.select({ count: sql`count(*)` }).from(securityOccurrences).where(eq(securityOccurrences.geocodingStatus, 'failed')))[0].count;
+    const notEnoughData = (await db.select({ count: sql`count(*)` }).from(securityOccurrences).where(eq(securityOccurrences.geocodingStatus, 'not_enough_data')))[0].count;
     
     // Dates
-    const oldestDateRow = await db.select({ minDate: sql`min(occurred_at)` }).from(occurrences).where(isNotNull(occurrences.occurredAt));
-    const newestDateRow = await db.select({ maxDate: sql`max(occurred_at)` }).from(occurrences).where(isNotNull(occurrences.occurredAt));
+    const oldestDateRow = await db.select({ minDate: sql`min(occurred_at)` }).from(securityOccurrences).where(isNotNull(securityOccurrences.occurredAt));
+    const newestDateRow = await db.select({ maxDate: sql`max(occurred_at)` }).from(securityOccurrences).where(isNotNull(securityOccurrences.occurredAt));
     const oldestDate = oldestDateRow[0]?.minDate ? new Date(oldestDateRow[0].minDate).toISOString() : null;
     const newestDate = newestDateRow[0]?.maxDate ? new Date(newestDateRow[0].maxDate).toISOString() : null;
     
-    const withoutDate = (await db.select({ count: sql`count(*)` }).from(occurrences).where(isNull(occurrences.occurredAt)))[0].count;
+    const withoutDate = (await db.select({ count: sql`count(*)` }).from(securityOccurrences).where(isNull(securityOccurrences.occurredAt)))[0].count;
     
     // Categories
     const categoriesRows = await db.select({
-      category: occurrences.category,
+      category: securityOccurrences.category,
       count: sql`count(*)`
-    }).from(occurrences).groupBy(occurrences.category);
+    }).from(securityOccurrences).groupBy(securityOccurrences.category);
     
     // Batches
-    const batches = await db.select().from(importBatches).orderBy(desc(importBatches.startedAt)).limit(10);
+    const batches = await db.select().from(dataImports).orderBy(desc(dataImports.startedAt)).limit(10);
     
     res.json({
       coverage: {
@@ -66,12 +82,89 @@ app.get("/api/admin/data-quality", async (req, res) => {
         newest: newestDate,
         withoutDate: withoutDate
       },
-      categories: categoriesRows,
-      recentBatches: batches
+      categories: categoriesRows || [],
+      recentBatches: batches || []
     });
   } catch (error) {
     console.error("Error fetching data quality:", error);
     res.status(500).json({ error: "Failed to fetch data quality" });
+  }
+});
+
+
+
+app.post("/api/admin/run-engine/ibge", async (req, res) => {
+  try {
+    const service = new IbgeSyncService();
+    // Run in background
+    service.syncAll().catch(console.error);
+    res.json({ success: true, message: "Engine started for IBGE Geographic Sync in the background." });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+app.post("/api/admin/run-engine/ssp", async (req, res) => {
+  try {
+    const engine = new IngestionEngine();
+    const sspAdapter = new SspSpAdapter();
+    // Run in background
+    engine.runJob(sspAdapter).catch(console.error);
+    res.json({ success: true, message: "Engine started for SSP-SP in the background." });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/admin/run-engine/sinesp", async (req, res) => {
+  try {
+    const engine = new IngestionEngine();
+    const sinesp = new SinespAdapter();
+    // Run in background
+    engine.runJob(sinesp).catch(console.error);
+    res.json({ success: true, message: "Engine started for SINESP in the background." });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+app.get("/api/dashboard/summary", async (req, res) => {
+  try {
+    const indicators = await db.select().from(securityIndicators);
+    
+    let total = 0;
+    const byCategory = {};
+    const byState = {};
+    const trend = {};
+
+    indicators.forEach(ind => {
+      const val = ind.value;
+      total += val;
+      
+      byCategory[ind.category] = (byCategory[ind.category] || 0) + val;
+      if (ind.stateCode) {
+        byState[ind.stateCode] = (byState[ind.stateCode] || 0) + val;
+      }
+      
+      const period = ind.period;
+      trend[period] = (trend[period] || 0) + val;
+    });
+
+    const categoryData = Object.entries(byCategory).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
+    const stateData = Object.entries(byState).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
+    const trendData = Object.entries(trend).map(([name, value]) => ({ name, value })).sort((a,b) => a.name.localeCompare(b.name));
+
+    res.json({
+      total,
+      byCategory: categoryData,
+      byState: stateData,
+      trend: trendData
+    });
+  } catch (error) {
+    console.error("Dashboard API Error:", error);
+    res.status(500).json({ error: "Failed to load dashboard data" });
   }
 });
 
@@ -144,60 +237,50 @@ app.get("/api/analysis", async (req, res) => {
   }
 
   try {
-    const bbox = getBoundingBox(latitude, longitude, radiusMeters);
-
-    // 1. Filter via database (fast BBox + Date)
+    const degreeRadius = radiusMeters / 111320.0;
+    
+    // Core database filters mapped to PostGIS
     const dbConditions: any[] = [
-      gte(occurrences.latitude, bbox.minLat),
-      lte(occurrences.latitude, bbox.maxLat),
-      gte(occurrences.longitude, bbox.minLon),
-      lte(occurrences.longitude, bbox.maxLon),
-      gte(occurrences.occurredAt, cutoffDate)
+      sql`geom && ST_Expand(ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326), ${degreeRadius})`,
+      sql`ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326)::geography) <= ${radiusMeters}`,
+      gte(securityOccurrences.occurredAt, cutoffDate)
     ];
     if (isSpecificYear) {
-      dbConditions.push(lte(occurrences.occurredAt, endDate));
+      dbConditions.push(lte(securityOccurrences.occurredAt, endDate));
     }
+    const whereClause = and(...dbConditions);
 
-    const rawOccurrences = await db.select().from(occurrences).where(
-      and(...dbConditions)
-    ).orderBy(asc(occurrences.occurredAt));
-
-    // 2. Exact filter in memory using Haversine
-    const exactOccurrences = rawOccurrences.filter(o => 
-      haversineDistance(latitude, longitude, o.latitude, o.longitude) <= radiusMeters
-    );
-
-    // Statistics calculation
-    let total = exactOccurrences.length;
-    let thefts = 0, robberies = 0, vehicles = 0, others = 0;
-    let day = 0, night = 0;
-
+    // 1. Fetch aggregations (Total, categories, day/night) directly from PostgreSQL
+    const aggregateResult = await db.select({
+      total: sql<number>`COUNT(*)::int`,
+      robberies: sql<number>`SUM(CASE WHEN LOWER(category) LIKE '%roubo%' OR LOWER(subcategory) LIKE '%roubo%' THEN 1 ELSE 0 END)::int`,
+      thefts: sql<number>`SUM(CASE WHEN LOWER(category) LIKE '%furto%' OR LOWER(subcategory) LIKE '%furto%' THEN 1 ELSE 0 END)::int`,
+      vehicles: sql<number>`SUM(CASE WHEN LOWER(category) LIKE '%veículo%' OR LOWER(category) LIKE '%veiculo%' OR LOWER(subcategory) LIKE '%veículo%' OR LOWER(subcategory) LIKE '%veiculo%' THEN 1 ELSE 0 END)::int`,
+      day: sql<number>`SUM(CASE WHEN EXTRACT(HOUR FROM occurred_at) >= 6 AND EXTRACT(HOUR FROM occurred_at) < 18 THEN 1 ELSE 0 END)::int`,
+      night: sql<number>`SUM(CASE WHEN EXTRACT(HOUR FROM occurred_at) < 6 OR EXTRACT(HOUR FROM occurred_at) >= 18 THEN 1 ELSE 0 END)::int`,
+    }).from(securityOccurrences).where(whereClause);
+    
+    const stats = aggregateResult[0] || { total: 0, robberies: 0, thefts: 0, vehicles: 0, day: 0, night: 0 };
+    const total = stats.total || 0;
+    const robberies = stats.robberies || 0;
+    const thefts = stats.thefts || 0;
+    const vehicles = stats.vehicles || 0;
+    const day = stats.day || 0;
+    const night = stats.night || 0;
+    const others = total - robberies - thefts - vehicles;
+    
+    // 2. Fetch Time Trend grouped by Month directly from PostgreSQL
+    const trendResult = await db.select({
+      monthKey: sql<string>`TO_CHAR(occurred_at, 'YYYY-MM')`,
+      count: sql<number>`COUNT(*)::int`
+    })
+    .from(securityOccurrences)
+    .where(whereClause)
+    .groupBy(sql`TO_CHAR(occurred_at, 'YYYY-MM')`);
+    
     const trendMap: Record<string, number> = {};
-    const othersBreakdown: Record<string, number> = {};
-
-    exactOccurrences.forEach(o => {
-      const sub = (o.subcategory || "").toLowerCase();
-      const cat = (o.category || "").toLowerCase();
-
-      if (cat.includes("veículo") || cat.includes("veiculo") || sub.includes("veículo") || sub.includes("veiculo")) {
-        vehicles++;
-      } else if (cat.includes("roubo") || sub.includes("roubo")) {
-        robberies++;
-      } else if (cat.includes("furto") || sub.includes("furto")) {
-        thefts++;
-      } else {
-        others++;
-        const desc = o.subcategory || o.category || "Não especificado";
-        othersBreakdown[desc] = (othersBreakdown[desc] || 0) + 1;
-      }
-
-      const date = new Date(o.occurredAt);
-      const hour = date.getHours();
-      if (hour >= 6 && hour < 18) day++;
-      else night++;
-
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      trendMap[monthKey] = (trendMap[monthKey] || 0) + 1;
+    trendResult.forEach(row => {
+      if (row.monthKey) trendMap[row.monthKey] = row.count;
     });
 
     // Fill missing months for trend
@@ -222,14 +305,35 @@ app.get("/api/analysis", async (req, res) => {
       }
     }
 
-    // Safety Score Algorithm (Actual calculation based on density/period)
-    // Assuming a baseline of X incidents per sq km per year is "bad"
+    // 3. Others Breakdown (Fallback query for 'others' category text grouping)
+    let othersBreakdown: Record<string, number> = {};
+    if (others > 0) {
+       const breakdownResult = await db.select({
+         desc: sql<string>`COALESCE(subcategory, category, 'Não especificado')`,
+         count: sql<number>`COUNT(*)::int`
+       })
+       .from(securityOccurrences)
+       .where(and(
+         whereClause,
+         sql`LOWER(category) NOT LIKE '%roubo%' AND LOWER(subcategory) NOT LIKE '%roubo%'`,
+         sql`LOWER(category) NOT LIKE '%furto%' AND LOWER(subcategory) NOT LIKE '%furto%'`,
+         sql`LOWER(category) NOT LIKE '%veículo%' AND LOWER(category) NOT LIKE '%veiculo%' AND LOWER(subcategory) NOT LIKE '%veículo%' AND LOWER(subcategory) NOT LIKE '%veiculo%'`
+       ))
+       .groupBy(sql`COALESCE(subcategory, category, 'Não especificado')`)
+       .orderBy(desc(sql`COUNT(*)`))
+       .limit(10);
+       
+       breakdownResult.forEach(row => {
+         othersBreakdown[row.desc] = row.count;
+       });
+    }
+
+    // Safety Score Algorithm (Preserved exactly as original)
     const areaSqKm = (Math.PI * Math.pow(radiusMeters / 1000, 2));
     const annualMultiplier = 12 / periodMonths;
     const annualizedIncidents = total * annualMultiplier;
     const incidentsPerSqKm = annualizedIncidents / areaSqKm;
 
-    // Severity weighting: Robberies cost more points than thefts
     const severityWeightedIncidents = 
       (robberies * 2) + 
       (vehicles * 1.5) + 
@@ -238,7 +342,6 @@ app.get("/api/analysis", async (req, res) => {
 
     const weightedDensity = (severityWeightedIncidents * annualMultiplier) / areaSqKm;
 
-    // Base score 100. Let's say a density of 500 weighted incidents/sqkm/yr drops the score to 0.
     const scoreVal = Math.max(0, Math.min(100, Math.round(100 - (weightedDensity / 5))));
     
     let classification = "Baixa atenção";
@@ -247,47 +350,43 @@ app.get("/api/analysis", async (req, res) => {
     else if (scoreVal < 75) classification = "Atenção moderada";
 
     const sources = await db.select().from(dataSources);
+    const exactOccurrences = await db.select().from(securityOccurrences).where(whereClause).limit(100);
 
     res.json({
       location: { latitude, longitude },
       radius: radiusMeters,
       period,
       score: {
-        value: total < 5 ? 0 : scoreVal, // 0 visually if insufficient, UI handles it
-        classification,
-        confidence: total < 5 ? 0.3 : (total < 20 ? 0.6 : 0.9), // lower confidence for few data points
+        value: scoreVal,
+        classification: classification,
+        confidence: 0.8
       },
       statistics: {
         total,
-        robberies,
-        thefts,
-        vehicles,
-        others,
-        othersBreakdown,
+        breakdown: {
+          thefts,
+          robberies,
+          vehicles,
+          others,
+          othersBreakdown,
+        },
         dayPercentage: total > 0 ? Math.round((day / total) * 100) : 0,
         nightPercentage: total > 0 ? Math.round((night / total) * 100) : 0,
       },
       trend,
-      occurrences: exactOccurrences.map(o => ({
-        category: o.category,
-        subcategory: o.subcategory,
-        latitude: o.latitude,
-        longitude: o.longitude,
-        occurredAt: o.occurredAt,
-        locationPrecision: o.locationPrecision
-      })),
-      dataSources: sources
+      occurrences: exactOccurrences,
+      dataSources: sources.map(s => ({ name: s.name, provider: s.provider, lastUpdated: s.lastAttempt }))
     });
-  } catch (err: any) {
-    console.error("Analysis Error:", err);
-    res.status(500).json({ error: "Failed to perform analysis" });
+  } catch (error: any) {
+    console.error("API Error (Analysis):", error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
 app.get("/api/data-sources", async (req, res) => {
   try {
     const sources = await db.select().from(dataSources);
-    res.json(sources);
+    res.json(sources || []);
   } catch (err: any) {
     res.status(500).json({ error: "Failed to fetch data sources" });
   }
@@ -378,6 +477,9 @@ async function startServer() {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
+
+  
+
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);

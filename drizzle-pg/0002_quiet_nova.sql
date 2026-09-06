@@ -1,0 +1,1 @@
+ALTER TABLE "data_sources" DROP COLUMN "last_updated_at";

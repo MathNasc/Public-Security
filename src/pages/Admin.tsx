@@ -49,7 +49,7 @@ function DataQualityTab() {
             <Activity className="w-4 h-4 text-amber-500"/> Categorias Identificadas
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {stats.categories.map((c: any) => (
+            {(stats.categories || []).map((c: any) => (
               <div key={c.category} className="bg-slate-900/50 p-3 rounded-lg border border-slate-800">
                 <div className="text-xs text-slate-500 font-medium uppercase tracking-wider">{c.category || 'Desconhecida'}</div>
                 <div className="text-lg font-bold text-slate-200 mt-1">{c.count.toLocaleString('pt-BR')}</div>
@@ -75,7 +75,7 @@ function DataQualityTab() {
               </tr>
             </thead>
             <tbody>
-              {stats.recentBatches.map((b: any) => (
+              {(stats.recentBatches || []).map((b: any) => (
                 <tr key={b.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
                   <td className="px-4 py-3">{new Date(b.startedAt).toLocaleString('pt-BR')}</td>
                   <td className="px-4 py-3 text-amber-500 truncate max-w-[150px]">{b.filename || b.sourceName}</td>
@@ -142,7 +142,26 @@ export function Admin() {
     }
   };
 
+  
+  const triggerEngine = async (engineName, endpoint) => {
+    setIsUploading(true);
+    try {
+      const res = await fetch(endpoint, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message);
+      } else {
+        alert('Erro: ' + data.error);
+      }
+    } catch (e) {
+      alert('Falha de rede.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleDownloadSample = async () => {
+
     setIsUploading(true);
     try {
       const response = await fetch("/api/admin/download-sample", { method: "POST" });
@@ -211,6 +230,12 @@ export function Admin() {
           >
             Qualidade dos Dados
           </button>
+          <button 
+            className={`pb-3 px-2 font-medium text-sm transition-colors ${activeTab === 'api' ? 'text-amber-500 border-b-2 border-amber-500' : 'text-slate-400 hover:text-slate-300'}`}
+            onClick={() => setActiveTab('api')}
+          >
+            Acesso à API (Pública)
+          </button>
         </div>
 
         {activeTab === 'ingestion' && (
@@ -221,7 +246,7 @@ export function Admin() {
             </div>
             
             <div className="divide-y divide-slate-800/50">
-              {sources.map(source => (
+              {(sources || []).map(source => (
                 <div key={source.id} className="px-6 py-5 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
@@ -259,6 +284,78 @@ export function Admin() {
         )}
         
         {activeTab === 'quality' && <DataQualityTab />}
+
+        {activeTab === 'api' && (
+          <div className="bg-slate-900/50 rounded-2xl border border-slate-800 p-6 space-y-6">
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+              <Database className="w-6 h-6 text-emerald-500" />
+              <div>
+                <h2 className="text-xl font-bold text-slate-200">API de Dados Abertos (V1)</h2>
+                <p className="text-sm text-slate-400">Consuma os dados de segurança integrados em suas próprias aplicações.</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-slate-950 p-4 rounded-lg border border-slate-800">
+                <h3 className="text-sm font-semibold text-slate-300 mb-2">Autenticação (X-API-Key)</h3>
+                <p className="text-sm text-slate-400 mb-4">Para acessar os endpoints, inclua sua chave no header <code className="text-amber-500 bg-amber-500/10 px-1 rounded">X-API-Key</code>.</p>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="text" 
+                    readOnly 
+                    value="test_api_key_123" 
+                    className="bg-slate-900 border border-slate-700 text-slate-300 px-3 py-2 rounded-lg text-sm w-full font-mono"
+                  />
+                  <button onClick={() => alert('Chave copiada!')} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors">
+                    Copiar
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500 mt-2">Nota: Esta chave é estática para o protótipo. No ambiente de produção, chaves são geradas dinamicamente.</p>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="font-semibold text-slate-300">Endpoints Disponíveis</h3>
+                
+                <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="bg-blue-500/20 text-blue-400 font-mono text-xs px-2 py-1 rounded font-bold">GET</span>
+                    <code className="text-slate-300 text-sm">/api/public/v1/indicators</code>
+                  </div>
+                  <p className="text-sm text-slate-400 mb-3">Retorna indicadores agregados (nível estadual e municipal).</p>
+                  <div className="text-xs text-slate-500 space-y-1">
+                    <p><strong>Query Params:</strong></p>
+                    <ul className="list-disc pl-4">
+                      <li><code className="text-amber-500">uf</code>: Sigla do estado (ex: SP, RJ)</li>
+                      <li><code className="text-amber-500">category</code>: Categoria do crime (ex: Homicídio doloso)</li>
+                      <li><code className="text-amber-500">period</code>: Período (ex: 2025-01)</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="bg-blue-500/20 text-blue-400 font-mono text-xs px-2 py-1 rounded font-bold">GET</span>
+                    <code className="text-slate-300 text-sm">/api/public/v1/occurrences</code>
+                  </div>
+                  <p className="text-sm text-slate-400 mb-3">Retorna ocorrências exatas com coordenadas geográficas.</p>
+                  <div className="text-xs text-slate-500 space-y-1">
+                    <p><strong>Query Params:</strong></p>
+                    <ul className="list-disc pl-4">
+                      <li><code className="text-amber-500">category</code>: Categoria do crime</li>
+                      <li><code className="text-amber-500">limit</code>: Limite de resultados (máx: 500)</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mt-6">
+                  <h4 className="text-red-400 font-semibold text-sm mb-1">Proteção contra Abuso (Rate Limit)</h4>
+                  <p className="text-red-300/80 text-xs">O acesso à API é estritamente limitado a 100 requisições a cada 15 minutos por IP para garantir a estabilidade do banco de dados.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
 
       </div>
     </div>

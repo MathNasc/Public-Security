@@ -10,7 +10,7 @@ import {
 
 export function TrendChart({ data }: { data: { month: string; count: number }[] }) {
   // Format the month from "YYYY-MM" to a short form, e.g. "Set", "Out"
-  const formattedData = data.map(d => {
+  const formattedData = (data || []).map(d => {
     const [year, month] = d.month.split('-');
     const date = new Date(parseInt(year), parseInt(month) - 1, 1);
     return {

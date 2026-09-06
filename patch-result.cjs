@@ -1,15 +1,12 @@
 const fs = require('fs');
 let code = fs.readFileSync('src/pages/Result.tsx', 'utf-8');
 
-code = code.replace(
-  /<option value="12m">Últimos 12 meses<\/option>/g,
-  `<option value="12m">Últimos 12 meses</option>
-            <option value="2022">Ano de 2022</option>
-            <option value="2021">Ano de 2021</option>
-            <option value="2020">Ano de 2020</option>
-            <option value="2019">Ano de 2019</option>
-            <option value="all">Todo o histórico</option>`
-);
+code = code.replace(/data\.occurrences\.map/g, "(data.occurrences || []).map");
+code = code.replace(/data\.dataSources\.map/g, "(data.dataSources || []).map");
+code = code.replace(/Object\.entries\(data\.statistics\.othersBreakdown\)/g, "Object.entries(data.statistics?.othersBreakdown || {})");
+code = code.replace(/stats\.categories\.map/g, "(stats.categories || []).map");
+code = code.replace(/stats\.recentBatches\.map/g, "(stats.recentBatches || []).map");
+code = code.replace(/sources\.map/g, "(sources || []).map");
 
 fs.writeFileSync('src/pages/Result.tsx', code);
-console.log('Patched Result.tsx successfully');
+console.log("Patched Result.tsx");
