@@ -2,6 +2,7 @@ export interface RawCrimeRecord {
   source_record_id: string;
   category: string;
   subcategory: string;
+  sourceCategory: string;
   occurred_at: string | null; // ISO date or null
   latitude: number | null;
   longitude: number | null;
@@ -99,6 +100,7 @@ export function normalizeSspRecord(raw: any): RawCrimeRecord {
     source_record_id: sourceRecordId,
     category: category,
     subcategory: natureza + (desdobramento ? ` - ${desdobramento}` : ''),
+    sourceCategory: natureza,
     occurred_at: finalDateStr,
     latitude: lat,
     longitude: lon,

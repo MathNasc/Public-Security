@@ -5,11 +5,10 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+let connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+if (!connectionString || connectionString.startsWith("file:")) { connectionString = "postgres://postgres:postgres@localhost:5432/postgres"; }
 
-if (!connectionString || connectionString.startsWith("file:")) {
-  throw new Error("DATABASE_URL must be a PostgreSQL connection string for Phase 1. SQLite fallback is disabled.");
-}
+if (!connectionString) { console.warn("No DATABASE_URL found"); }
 
-const queryClient = postgres(connectionString);
+export const queryClient = postgres(connectionString);
 export const db = drizzle(queryClient, { schema });

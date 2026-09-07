@@ -1,8 +1,17 @@
-import { Dashboard } from "./pages/Dashboard";
+
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { Home } from "./pages/Home";
-import { Result } from "./pages/Result";
-import { Admin } from "./pages/Admin";
+const Dashboard = lazy(() => import('./pages/Dashboard').then(module => ({ default: module.Dashboard })));
+const Home = lazy(() => import('./pages/Home').then(module => ({ default: module.Home })));
+const Result = lazy(() => import('./pages/Result').then(module => ({ default: module.Result })));
+const Compare = lazy(() => import('./pages/Compare').then(module => ({ default: module.Compare })));
+const Admin = lazy(() => import('./pages/Admin').then(module => ({ default: module.Admin })));
+
+
+
+
+
+
 
 export default function App() {
   return (
@@ -21,12 +30,17 @@ export default function App() {
 </div></header>
 
         <main className="max-w-5xl mx-auto">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/resultado" element={<Result />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/admin/data-sources" element={<Admin />} />
-          </Routes>
+          
+          <Suspense fallback={<div className="p-8 text-center text-slate-400">Carregando módulo...</div>}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/resultado" element={<Result />} />
+              <Route path="/comparar" element={<Compare />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/admin/data-sources" element={<Admin />} />
+            </Routes>
+          </Suspense>
+
         </main>
       </div>
     </Router>

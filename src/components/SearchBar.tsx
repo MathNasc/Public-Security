@@ -35,6 +35,7 @@ export function SearchBar({ className }: { className?: string }) {
         <Search className="absolute left-4 w-5 h-5 text-slate-400" />
         <input
           type="text"
+          aria-label="Digite um endereço"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Digite um endereço, CEP ou local"

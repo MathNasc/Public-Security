@@ -24,7 +24,7 @@ export function Dashboard() {
     );
   }
 
-  if (!data || data.total === 0) {
+  if (!data || data.error || data.total === undefined || data.total === 0) {
     return (
       <div className="px-4 py-12 max-w-5xl mx-auto">
         <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-12 text-center">

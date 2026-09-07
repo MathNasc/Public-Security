@@ -135,6 +135,7 @@ export class DataIngestionService {
         lastAttempt: new Date(),
         recordsImported: (existingSource.recordsImported || 0) + stats.valid_records,
         status: "Ativo",
+        updatedAt: new Date()
       }).where(eq(dataSources.id, existingSource.id));
     } else {
       await db.insert(dataSources).values({
@@ -147,6 +148,8 @@ export class DataIngestionService {
         lastAttempt: new Date(),
         recordsImported: stats.valid_records,
         status: "Ativo",
+        createdAt: new Date(),
+        updatedAt: new Date()
       });
     }
 

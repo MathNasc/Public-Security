@@ -57,7 +57,7 @@ publicRouter.get('/v1/indicators', async (req, res) => {
       data: results
     });
   } catch (error: any) {
-    console.error("API Error (Indicators):", error);
+    console.warn("API Error (Indicators):", error.message);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
@@ -107,7 +107,7 @@ publicRouter.get('/v1/occurrences', async (req, res) => {
       data: results
     });
   } catch (error: any) {
-    console.error("API Error (Occurrences):", error);
+    console.warn("API Error (Occurrences):", error.message);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });

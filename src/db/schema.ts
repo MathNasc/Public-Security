@@ -38,6 +38,14 @@ export const dataDatasets = pgTable("data_datasets", {
   periodEnd: timestamp("period_end", { mode: 'date', withTimezone: true }),
   lastModified: timestamp("last_modified", { mode: 'date', withTimezone: true }),
   checksum: text("checksum"),
+  discoveryFrequency: text("discovery_frequency").notNull().default('monthly'),
+  expectedUpdateFrequency: text("expected_update_frequency").notNull().default('monthly'),
+  enabled: boolean("enabled").notNull().default(true),
+  discoveryUrl: text("discovery_url"),
+  parserVersion: text("parser_version"),
+  lastDiscoveredAt: timestamp("last_discovered_at", { mode: 'date', withTimezone: true }),
+  lastVersion: text("last_version"),
+  status: text("status").notNull().default('unknown'),
   createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).notNull(),
 });
@@ -46,17 +54,46 @@ export const dataImports = pgTable("data_imports", {
   id: text("id").primaryKey(),
   sourceId: text("source_id").notNull(),
   datasetId: text("dataset_id"),
-  startedAt: timestamp("started_at", { mode: 'date', withTimezone: true }).notNull(),
-  finishedAt: timestamp("finished_at", { mode: 'date', withTimezone: true }),
-  status: text("status").notNull(), // SUCCESS, FAILED, IN_PROGRESS
+  
+  // Legacy Columns (Kept to avoid destructive migration prompt)
   recordsDownloaded: integer("records_downloaded").default(0),
   recordsParsed: integer("records_parsed").default(0),
-  recordsInserted: integer("records_inserted").default(0),
-  recordsUpdated: integer("records_updated").default(0),
   recordsRejected: integer("records_rejected").default(0),
   errorMessage: text("error_message"),
+  
+  // Raw File Metadata
+  rawFilePath: text("raw_file_path"),
+  originalFilename: text("original_filename"),
   checksum: text("checksum"),
-  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).notNull(),
+  fileSize: integer("file_size"),
+  
+  // Job Status
+  status: text("status").notNull().default("QUEUED"), // QUEUED, PROCESSING, COMPLETED, FAILED, CANCELLED
+  startedAt: timestamp("started_at", { mode: 'date', withTimezone: true }),
+  finishedAt: timestamp("finished_at", { mode: 'date', withTimezone: true }),
+  
+  // Job Retry & Checkpoint
+  checkpoint: text("checkpoint"), // e.g. line number or bytes read
+  attempts: integer("attempts").default(0),
+  lastError: text("last_error"),
+  failedAt: timestamp("failed_at", { mode: 'date', withTimezone: true }),
+  
+  // Locking for Concurrency
+  workerId: text("worker_id"),
+  lockedAt: timestamp("locked_at", { mode: 'date', withTimezone: true }),
+
+  // Data Quality Metrics
+  recordsRead: integer("records_read").default(0),
+  recordsValid: integer("records_valid").default(0),
+  recordsInvalid: integer("records_invalid").default(0),
+  recordsInserted: integer("records_inserted").default(0),
+  recordsUpdated: integer("records_updated").default(0),
+  recordsDuplicate: integer("records_duplicate").default(0),
+  recordsWithoutCoordinates: integer("records_without_coordinates").default(0),
+  recordsWithInvalidCoordinates: integer("records_with_invalid_coordinates").default(0),
+  recordsWithUnknownMunicipality: integer("records_with_unknown_municipality").default(0),
+  
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).notNull().defaultNow(),
 });
 
 // ==============================================
@@ -77,6 +114,7 @@ export const securityOccurrences = pgTable("security_occurrences", {
   
   category: text("category").notNull(),
   subcategory: text("subcategory"),
+  sourceCategory: text("source_category"),
   
   occurredAt: timestamp("occurred_at", { mode: 'date', withTimezone: true }),
   year: integer("year"),
@@ -119,6 +157,7 @@ export const securityIndicators = pgTable("security_indicators", {
   
   category: text("category").notNull(),
   subcategory: text("subcategory"),
+  sourceCategory: text("source_category"),
   
   period: text("period").notNull(), 
   value: doublePrecision("value").notNull(),
@@ -206,3 +245,75 @@ export const geographicMunicipalities = pgTable("geographic_municipalities", {
   normNameIdx: index("muni_norm_name_idx").on(table.normalizedName),
   geomIdx: index("muni_geom_idx").using("gist", table.geom),
 }));
+
+// ==============================================
+// 5. ANALYTICS & INTELLIGENCE (PHASE 10)
+// ==============================================
+
+export const regionWatchlists = pgTable("region_watchlists", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(), // can be an email or session id for MVP
+  name: text("name").notNull(),
+  latitude: doublePrecision("latitude").notNull(),
+  longitude: doublePrecision("longitude").notNull(),
+  radiusMeters: integer("radius_meters").notNull(),
+  lastScore: integer("last_score"),
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  userIdx: index("watchlist_user_idx").on(table.userId),
+}));
+
+export const regionAlerts = pgTable("region_alerts", {
+  id: text("id").primaryKey(),
+  watchlistId: text("watchlist_id").notNull().references(() => regionWatchlists.id),
+  type: text("type").notNull(), // 'score_change', 'indicator_change'
+  message: text("message").notNull(),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+});
+
+export const generatedSummaries = pgTable("generated_summaries", {
+  id: text("id").primaryKey(),
+  cacheKey: text("cache_key").notNull().unique(), // lat_lon_radius_period
+  summaryText: text("summary_text").notNull(),
+  methodologyVersion: text("methodology_version").notNull(),
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+});
+
+
+
+// ==============================================
+// 6. CONTINUOUS INGESTION (PHASE 10)
+// ==============================================
+
+export const ingestionJobs = pgTable("ingestion_jobs", {
+  id: text("id").primaryKey(),
+  datasetId: text("dataset_id").notNull(),
+  sourceId: text("source_id").notNull(),
+  status: text("status").notNull(), // queued, processing, completed, failed, dead_letter, no_update
+  version: text("version"),
+  retryCount: integer("retry_count").notNull().default(0),
+  maxRetries: integer("max_retries").notNull().default(3),
+  error: text("error"),
+  logs: text("logs"),
+  lockedAt: timestamp("locked_at", { mode: 'date', withTimezone: true }),
+  lockedBy: text("locked_by"), // worker_id
+  nextRetryAt: timestamp("next_retry_at", { mode: 'date', withTimezone: true }),
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { mode: 'date', withTimezone: true }),
+});
+
+export const rawStorage = pgTable("raw_storage", {
+  id: text("id").primaryKey(),
+  datasetId: text("dataset_id").notNull(),
+  sourceId: text("source_id").notNull(),
+  version: text("version").notNull(),
+  filename: text("filename").notNull(),
+  storageKey: text("storage_key").notNull(),
+  checksum: text("checksum"),
+  size: integer("size"),
+  contentType: text("content_type"),
+  downloadedAt: timestamp("downloaded_at", { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+});

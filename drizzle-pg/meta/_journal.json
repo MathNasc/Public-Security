@@ -22,6 +22,27 @@
       "when": 1788734639579,
       "tag": "0002_quiet_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788808940598,
+      "tag": "0003_outstanding_enchantress",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788816340743,
+      "tag": "0004_superb_stature",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788820167754,
+      "tag": "0005_odd_hellion",
+      "breakpoints": true
     }
   ]
 }
