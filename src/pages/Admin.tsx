@@ -355,7 +355,7 @@ export function Admin() {
                         <Database className="w-3 h-3 text-slate-400" /> Registros: {source.recordsImported?.toLocaleString('pt-BR') || 0}
                       </span>
                       <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-slate-400" /> Atualizado: {new Date(source.lastUpdatedAt).toLocaleDateString('pt-BR')}
+                        <Clock className="w-3 h-3 text-slate-400" /> Atualizado: {new Date(source.updatedAt).toLocaleDateString('pt-BR')}
                       </span>
                     </div>
                   </div>
