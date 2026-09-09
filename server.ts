@@ -30,6 +30,7 @@ import cors from "cors";
 import path from "path";
 import multer from "multer";
 import fs from "fs";
+import os from "os";
 import { createServer as createViteServer } from "vite";
 import { db } from "./src/db/index.js";
 // Removed duplicate import
@@ -46,7 +47,7 @@ export const app = express();
 export default app;
 app.set("trust proxy", 1);
 const PORT = 3000;
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({ dest: os.tmpdir() });
 
 app.use((req,res,next)=>{ console.log('REQ:', req.method, req.url); next(); });
 app.use(cors());
@@ -407,12 +408,10 @@ app.post("/api/admin/upload-ssp", adminAuth, upload.single("file"), async (req, 
 
 app.post("/api/admin/download-sample", adminAuth, async (req, res) => {
   const SAMPLE_URL = "https://raw.githubusercontent.com/NESPEDUFV/repositorio_dados_sbcup/main/crimes_2019_somente_sp_com_bairro.csv";
-  const tempPath = path.join(process.cwd(), "uploads", `sample_${Date.now()}.csv`);
+  const tempPath = path.join(os.tmpdir(), `sample_${Date.now()}.csv`);
   
   try {
-    if (!fs.existsSync(path.join(process.cwd(), "uploads"))) {
-      fs.mkdirSync(path.join(process.cwd(), "uploads"));
-    }
+    // No need to create tmp dir
 
     // Download the file
     const response = await axios({

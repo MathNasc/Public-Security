@@ -262,7 +262,7 @@ export function Admin() {
         alert(`Erro na importação: ${data.error || 'Desconhecido'}`);
       }
     } catch (err) {
-      alert("Falha ao baixar amostra.");
+      alert(`Falha ao baixar amostra: ${err.message || err}`);
     } finally {
       setIsUploading(false);
     }
