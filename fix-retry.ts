@@ -1,4 +1,7 @@
-import { GoogleGenAI } from '@google/genai';
+import fs from 'fs';
+
+const filePath = 'src/services/SummaryService.ts';
+const code = `import { GoogleGenAI } from '@google/genai';
 
 export class SummaryService {
   private ai: GoogleGenAI;
@@ -8,7 +11,7 @@ export class SummaryService {
   }
 
   async generateSummary(structuredData: any): Promise<string> {
-    const prompt = `Você é um analista de dados especialista em segurança pública.
+    const prompt = \`Você é um analista de dados especialista em segurança pública.
 Escreva um resumo analítico claro, em português do Brasil, para o público geral.
 O resumo não deve conter alucinações, e você deve basear-se ESTRITAMENTE nos dados estruturados abaixo.
 Não assuma ou adivinhe causas. Mantenha o tom neutro e objetivo.
@@ -24,7 +27,7 @@ Descreva a variação no Score de Segurança e os indicadores que subiram ou des
 Mencione também os 2 principais indicadores que subiram ou caíram (comparando "indicators" com "previousIndicators").
 
 DADOS ESTRUTURADOS:
-${JSON.stringify(structuredData, null, 2)}`;
+\${JSON.stringify(structuredData, null, 2)}\`;
 
     const modelsToTry = [
       'gemini-3.6-flash',
@@ -55,7 +58,7 @@ ${JSON.stringify(structuredData, null, 2)}`;
             continue;
           }
           
-          console.error(`Failed to generate summary with model ${model}:`, error.message || error);
+          console.error(\`Failed to generate summary with model \${model}:\`, error.message || error);
           break; // Break the retry loop and go to next model
         }
       }
@@ -64,3 +67,6 @@ ${JSON.stringify(structuredData, null, 2)}`;
     return 'Resumo temporariamente indisponível devido a alta demanda nos servidores de IA. Por favor, tente novamente em alguns instantes.';
   }
 }
+`;
+
+fs.writeFileSync(filePath, code);

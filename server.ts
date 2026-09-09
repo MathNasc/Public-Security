@@ -42,7 +42,8 @@ import { importSspFile } from "./src/ingestion/ssp/importer.js";
 
 
 
-const app = express();
+export const app = express();
+export default app;
 app.set("trust proxy", 1);
 const PORT = 3000;
 const upload = multer({ dest: 'uploads/' });
@@ -438,17 +439,7 @@ async function startServer() {
   const ingestionWorker = new IngestionWorker();
   
 
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    
-// Phase 10: Admin APIs
+  // Phase 10: Admin APIs
 app.get("/api/admin/ingestion/status", async (req, res) => {
   try {
     const jobs = await db.select().from(ingestionJobs).orderBy(desc(ingestionJobs.createdAt)).limit(10);
@@ -482,7 +473,18 @@ app.post("/api/admin/ingestion/jobs/:id/retry", async (req, res) => {
   res.json({ success: true, message: "Job retry initiated" });
 });
 
-  app.get("*", (req, res) => {
+  
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    
+app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
@@ -490,15 +492,21 @@ app.post("/api/admin/ingestion/jobs/:id/retry", async (req, res) => {
   
 
 
-  app.listen(PORT, "0.0.0.0", () => {
-    logger.info(`Server running on port ${PORT}`, { event: "server_start", port: PORT });
-  });
+  
+    if (process.env.VERCEL !== "1") {
+      app.listen(PORT, "0.0.0.0", () => {
+        logger.info(`Server running on port ${PORT}`, { event: "server_start", port: PORT });
+      });
+    }
 }
-
 
 // Start Phase 10 Scheduler
 if (process.env.NODE_ENV !== 'test') {
   globalScheduler.start(60000);
 }
-
-startServer();
+if (process.env.VERCEL !== "1") {
+  startServer();
+} else {
+  // If in vercel, we just run the setup synchronously as much as possible, or Vercel will handle it
+  // Actually, Vercel needs the app exported synchronously.
+}

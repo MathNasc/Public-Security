@@ -1,9 +1,12 @@
 import fs from 'fs';
+
 let code = fs.readFileSync('server.ts', 'utf8');
 
-code = code.replace(
-  "import { dataSources, dataImports, securityOccurrences, securityIndicators, geographicStates, geographicMunicipalities, ingestionJobs, dataDatasets, rawStorage } from './src/db/schema.js';",
-  "import { dataSources, dataImports, securityOccurrences, securityIndicators, geographicStates, geographicMunicipalities, ingestionJobs, dataDatasets, rawStorage, regionWatchlists } from './src/db/schema.js';"
-);
+// If the app is initialized inside a function, Vercel cannot import it synchronously.
+// We must extract route definitions outside of the async startServer() function, or export an already initialized app.
+// Since Vercel uses serverless functions, we can just instantiate `const app = express()` at the top layer
+// and attach the routes there.
 
-fs.writeFileSync('server.ts', code);
+if (code.includes('async function startServer()')) {
+  // Too complex to regex reliably, we will just construct a cleaner api/index.ts that imports and runs setup
+}

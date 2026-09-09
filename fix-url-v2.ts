@@ -1,17 +1,12 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import * as schema from "./schema.js";
-import dotenv from "dotenv";
+import fs from 'fs';
 
-dotenv.config();
-
-let connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
-if (!connectionString || connectionString.startsWith("file:")) { connectionString = "postgres://postgres:postgres@localhost:5432/postgres"; }
-
-if (!connectionString) { console.warn("No DATABASE_URL found"); }
-
-
-
+function applyFix(filePath: string) {
+  let code = fs.readFileSync(filePath, 'utf8');
+  
+  // Clean up the previous fix if any
+  code = code.replace(/\/\/ Auto-fix URL encoding issues.*?(?=export const queryClient|const queryClient)/s, '');
+  
+  const fixCode = `
 // Auto-fix URL encoding issues for passwords with special chars
 if (connectionString && connectionString.startsWith("postgres")) {
   const parts = connectionString.split('@');
@@ -40,6 +35,16 @@ if (connectionString && connectionString.startsWith("postgres")) {
     }
   }
 }
+`;
+  
+  if (code.includes('export const queryClient = postgres(connectionString);')) {
+      code = code.replace('export const queryClient = postgres(connectionString);', fixCode + '\nexport const queryClient = postgres(connectionString);');
+      fs.writeFileSync(filePath, code);
+  } else if (code.includes('const queryClient = postgres(connectionString')) {
+      code = code.replace('const queryClient = postgres(connectionString', fixCode + '\nconst queryClient = postgres(connectionString');
+      fs.writeFileSync(filePath, code);
+  }
+}
 
-export const queryClient = postgres(connectionString);
-export const db = drizzle(queryClient, { schema });
+applyFix('src/db/index.ts');
+applyFix('src/db/migrate.ts');
