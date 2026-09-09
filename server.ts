@@ -475,11 +475,7 @@ app.post("/api/admin/download-sample", adminAuth, async (req, res) => {
 });
 
 // Vite Middleware for Development or Static Files for Production
-async function startServer() {
-  const ingestionWorker = new IngestionWorker();
-  
-
-  // Phase 10: Admin APIs
+// Phase 10: Admin APIs
 app.get("/api/admin/ingestion/status", async (req, res) => {
   try {
     const jobs = await db.select().from(ingestionJobs).orderBy(desc(ingestionJobs.createdAt)).limit(10);
@@ -514,6 +510,11 @@ app.post("/api/admin/ingestion/jobs/:id/retry", async (req, res) => {
 });
 
   
+  
+async function startServer() {
+  const ingestionWorker = new IngestionWorker();
+  
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -541,7 +542,7 @@ app.get("*", (req, res) => {
 }
 
 // Start Phase 10 Scheduler
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'test' && process.env.VERCEL !== "1") {
   globalScheduler.start(60000);
 }
 if (process.env.VERCEL !== "1") {

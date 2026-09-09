@@ -41,5 +41,5 @@ if (connectionString && connectionString.startsWith("postgres")) {
   }
 }
 
-export const queryClient = postgres(connectionString);
+export const queryClient = postgres(connectionString, { max: 10, idle_timeout: 10, connect_timeout: 10 });
 export const db = drizzle(queryClient, { schema });
