@@ -6,26 +6,27 @@ import dotenv from "dotenv";
 dotenv.config();
 
 let connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
-if (!connectionString || connectionString.startsWith("file:")) { connectionString = "postgres://postgres:postgres@localhost:5432/postgres"; }
 
-if (!connectionString) { console.warn("No DATABASE_URL found"); }
+if (!connectionString || connectionString.startsWith("file:")) { 
+  connectionString = "postgres://postgres:postgres@localhost:5432/postgres"; 
+}
 
-
+if (!connectionString) { 
+  console.warn("No DATABASE_URL found"); 
+}
 
 // Auto-fix URL encoding issues for passwords with special chars
 if (connectionString && connectionString.startsWith("postgres")) {
   const parts = connectionString.split('@');
   if (parts.length > 1) {
-    // There's an @ in the URL. We want the LAST @ to be the separator between credentials and host.
-    // Anything before the last @ is "postgres:password" or similar.
     const lastAt = connectionString.lastIndexOf('@');
-    const credentials = connectionString.substring(0, lastAt); // e.g. postgresql://postgres:ZaZd!@#8982
-    const hostPart = connectionString.substring(lastAt); // e.g. @db.eykrzanfocirkbcbrbyp.supabase.co:5432/postgres
+    const credentials = connectionString.substring(0, lastAt); 
+    const hostPart = connectionString.substring(lastAt); 
     
     const protoEnd = credentials.indexOf('://');
-    if (protoEnd !== -1) {
+    if (protoEnd !== -1) { 
        const proto = credentials.substring(0, protoEnd + 3);
-       const auth = credentials.substring(protoEnd + 3); // postgres:ZaZd!@#8982
+       const auth = credentials.substring(protoEnd + 3); 
        const colonIndex = auth.indexOf(':');
        if (colonIndex !== -1) {
           const user = auth.substring(0, colonIndex);

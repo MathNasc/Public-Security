@@ -31,7 +31,6 @@ import path from "path";
 import multer from "multer";
 import fs from "fs";
 import os from "os";
-import { createServer as createViteServer } from "vite";
 import { db } from "./src/db/index.js";
 // Removed duplicate import
 import { getBoundingBox, haversineDistance } from "./src/lib/geo.js";
@@ -484,6 +483,7 @@ async function startServer() {
   
 
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
