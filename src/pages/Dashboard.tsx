@@ -13,6 +13,11 @@ export function Dashboard() {
       .then(d => {
         setData(d);
         setLoading(false);
+      })
+      .catch(err => {
+        console.error("Dashboard fetch error:", err);
+        setData({ error: "Failed" });
+        setLoading(false);
       });
   }, []);
 

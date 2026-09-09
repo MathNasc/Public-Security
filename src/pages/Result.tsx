@@ -84,7 +84,7 @@ export function Result() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-400">
         <AlertTriangle className="w-12 h-12 text-red-500 mb-4" />
-        Não foi possível carregar os dados. Verifique o endereço e tente novamente.
+        Não foi possível carregar os dados: {data?.details || data?.error || "Verifique o endereço ou a conexão com o banco de dados (DATABASE_URL)."}
       </div>
     );
   }

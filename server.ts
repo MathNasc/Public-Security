@@ -133,60 +133,29 @@ app.post("/api/admin/run-engine/sinesp", (req, res) => res.json({ success: true,
 
 app.get("/api/dashboard/summary", async (req, res) => {
   try {
-    const indicators = await db.select().from(securityIndicators);
+    const byCategoryRaw = await db.execute(sql`SELECT category, SUM(value) as val FROM security_indicators GROUP BY category ORDER BY val DESC`);
+    const byStateRaw = await db.execute(sql`SELECT state_code, SUM(value) as val FROM security_indicators WHERE state_code IS NOT NULL GROUP BY state_code ORDER BY val DESC`);
+    const byTrendRaw = await db.execute(sql`SELECT period, SUM(value) as val FROM security_indicators GROUP BY period ORDER BY period ASC`);
     
     let total = 0;
-    const byCategory: Record<string, number> = {};
-    const byState: Record<string, number> = {};
-    const trend: Record<string, number> = {};
-
-    indicators.forEach(ind => {
-      const val = ind.value;
-      total += val;
-      
-      byCategory[ind.category] = (byCategory[ind.category] || 0) + val;
-      if (ind.stateCode) {
-        byState[ind.stateCode] = (byState[ind.stateCode] || 0) + val;
-      }
-      
-      const period = ind.period;
-      trend[period] = (trend[period] || 0) + val;
+    const categoryData = byCategoryRaw.map((r: any) => { 
+      const v = Number(r.val);
+      total += v;
+      return { name: r.category, value: v }; 
     });
-
-    const categoryData = Object.entries(byCategory).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
-    const stateData = Object.entries(byState).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
-    const trendData = Object.entries(trend).map(([name, value]) => ({ name, value })).sort((a,b) => a.name.localeCompare(b.name));
-
+    
+    const stateData = byStateRaw.map((r: any) => ({ name: r.state_code, value: Number(r.val) }));
+    const trendData = byTrendRaw.map((r: any) => ({ name: r.period, value: Number(r.val) }));
+    
     res.json({
       total,
-      byCategory: categoryData,
-      byState: stateData,
-      trend: trendData
+      categoryData,
+      stateData,
+      trendData
     });
-  } catch (error) {
-    logger.warn("Dashboard API Error (DB missing?)", { event: "dashboard_error", error: error.message });
-    return res.json({
-      total: 125430,
-      byCategory: [
-        { name: "ROUBO", value: 45000 },
-        { name: "FURTO", value: 65000 },
-        { name: "HOMICIDIO", value: 15430 }
-      ],
-      byState: [
-        { name: "SP", value: 50000 },
-        { name: "RJ", value: 30000 },
-        { name: "MG", value: 45430 }
-      ],
-      recentTrend: [
-        { month: "Jan", value: 10000 },
-        { month: "Fev", value: 12000 },
-        { month: "Mar", value: 11000 },
-        { month: "Abr", value: 9000 },
-        { month: "Mai", value: 15000 },
-        { month: "Jun", value: 13000 }
-      ]
-    });
-    res.status(500).json({ error: "Failed to load dashboard data" });
+  } catch (error: any) {
+    logger.error("Dashboard error", { event: "dashboard_error", error: error.message });
+    res.status(500).json({ error: "Failed to load dashboard data", details: error.message });
   }
 });
 
@@ -322,7 +291,7 @@ app.get("/api/analysis", publicApiLimiter, async (req, res) => {
 
   } catch (err) {
     logger.warn("Internal Analysis Error (DB missing?)", { event: "analysis_error", error: err.stack || err.message });
-    res.status(500).json({ error: "Internal Analysis Error" });
+    res.status(500).json({ error: "Internal Analysis Error", details: err.message, stack: err.stack });
   }
 });
 
