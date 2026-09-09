@@ -1,4 +1,4 @@
-import { SearchBar } from "../components/SearchBar";
+import { SearchBar } from '../components/SearchBar.js';
 import { ShieldCheck, Map, Activity } from "lucide-react";
 import * as motion from "motion/react-client";
 

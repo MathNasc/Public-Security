@@ -1,7 +1,7 @@
 import { dataSources, dataImports, securityOccurrences, securityIndicators, geographicStates, geographicMunicipalities, ingestionJobs, dataDatasets, rawStorage, regionWatchlists } from './src/db/schema.js';
 import { eq, and, gte, lte, asc, sql, isNotNull, isNull, desc } from "drizzle-orm";
 
-import { globalScheduler } from './src/ingestion/orchestration/Scheduler';
+import { globalScheduler } from './src/ingestion/orchestration/Scheduler.js';
 
 
 import { analysisCache } from "./src/lib/cache.js";
@@ -9,7 +9,7 @@ import { IngestionWorker } from './src/ingestion/pipeline/Worker.js';
 import { rawStorage as pipelineRawStorage } from './src/ingestion/pipeline/Storage.js';
 import { JobManager } from './src/ingestion/pipeline/JobManager.js';
 import * as crypto from 'crypto';
-import { publicRouter } from './src/api/public';
+import { publicRouter } from './src/api/public.js';
 import { IngestionEngine } from './src/ingestion/core/IngestionEngine.js';
 // Removed SinespAdapter old import
 import { IbgeSyncService } from './src/ingestion/adapters/geographic/ibge/IbgeSyncService.js';
@@ -17,15 +17,15 @@ import { IbgeSyncService } from './src/ingestion/adapters/geographic/ibge/IbgeSy
 import express from "express";
 
 import helmet from 'helmet';
-import { requestLogger } from './src/middleware/requestLogger';
-import { adminAuth } from './src/middleware/adminAuth';
-import { publicApiLimiter, geocodeLimiter } from './src/middleware/rateLimiter';
+import { requestLogger } from './src/middleware/requestLogger.js';
+import { adminAuth } from './src/middleware/adminAuth.js';
+import { publicApiLimiter, geocodeLimiter } from './src/middleware/rateLimiter.js';
 
 import { SummaryService } from './src/services/SummaryService.js';
 import { randomUUID } from 'crypto';
 
 import { healthRouter } from './src/api/health.js';
-import { logger } from './src/lib/logger';
+import { logger } from './src/lib/logger.js';
 import cors from "cors";
 import path from "path";
 import multer from "multer";
@@ -230,7 +230,7 @@ app.get("/api/geocode", geocodeLimiter, async (req, res) => {
   }
 });
 
-import { SafetyAnalysisService } from "./src/services/SafetyAnalysisService";
+import { SafetyAnalysisService } from './src/services/SafetyAnalysisService.js';
 
 app.get("/api/analysis", publicApiLimiter, async (req, res) => {
   const { lat, lon, radius = "1000", period = "12m" } = req.query;

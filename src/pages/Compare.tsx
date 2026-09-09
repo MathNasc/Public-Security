@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { ShieldCheck, ShieldAlert, Shield, AlertTriangle, MapPin, Activity, Check, X } from "lucide-react";
 import * as motion from "motion/react-client";
-import { cn } from "../lib/utils";
+import { cn } from '../lib/utils.js';
 
 export function Compare() {
   const [searchParams] = useSearchParams();

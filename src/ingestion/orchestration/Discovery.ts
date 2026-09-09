@@ -1,5 +1,5 @@
-import { db } from '../../db/index';
-import { dataDatasets } from '../../db/schema';
+import { db } from '../../db/index.js';
+import { dataDatasets } from '../../db/schema.js';
 
 export class Discovery {
   static async checkForUpdates(dataset: any): Promise<{ version: string; metadata?: any } | null> {

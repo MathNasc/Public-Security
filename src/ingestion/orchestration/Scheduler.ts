@@ -1,9 +1,9 @@
-import { db } from '../../db/index';
-import { dataDatasets, ingestionJobs } from '../../db/schema';
+import { db } from '../../db/index.js';
+import { dataDatasets, ingestionJobs } from '../../db/schema.js';
 import { eq, and, isNull, lt, or, lte } from 'drizzle-orm';
 import crypto from 'crypto';
-import { Discovery } from './Discovery';
-import { JobWorker } from './JobWorker';
+import { Discovery } from './Discovery.js';
+import { JobWorker } from './JobWorker.js';
 
 export class Scheduler {
   private timer: NodeJS.Timeout | null = null;

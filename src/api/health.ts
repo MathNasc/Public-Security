@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { db } from '../db/index';
+import { db } from '../db/index.js';
 import { sql } from 'drizzle-orm';
-import { rawStorage } from '../ingestion/pipeline/Storage';
+import { rawStorage } from '../ingestion/pipeline/Storage.js';
 
 export const healthRouter = Router();
 

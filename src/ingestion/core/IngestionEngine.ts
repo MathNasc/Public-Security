@@ -1,6 +1,6 @@
-import { db } from '../../db/index';
-import { dataImports, securityOccurrences, securityIndicators, dataSources } from '../../db/schema';
-import { SecurityDataSource, NormalizedRecord } from './types';
+import { db } from '../../db/index.js';
+import { dataImports, securityOccurrences, securityIndicators, dataSources } from '../../db/schema.js';
+import { SecurityDataSource, NormalizedRecord } from './types.js';
 import { eq } from 'drizzle-orm';
 
 export class IngestionEngine {

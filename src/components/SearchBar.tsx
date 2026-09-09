@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, MapPin, Navigation, Loader2 } from "lucide-react";
-import { cn } from "../lib/utils";
+import { cn } from '../lib/utils.js';
 
 export function SearchBar({ className }: { className?: string }) {
   const [query, setQuery] = useState("");

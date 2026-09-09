@@ -1,6 +1,6 @@
 
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 const Dashboard = lazy(() => import('./pages/Dashboard').then(module => ({ default: module.Dashboard })));
 const Home = lazy(() => import('./pages/Home').then(module => ({ default: module.Home })));
 const Result = lazy(() => import('./pages/Result').then(module => ({ default: module.Result })));
@@ -36,6 +36,7 @@ export default function App() {
               <Route path="/resultado" element={<Result />} />
               <Route path="/comparar" element={<Compare />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/admin" element={<Navigate to="/admin/data-sources" replace />} />
               <Route path="/admin/data-sources" element={<Admin />} />
               <Route path="/api-docs" element={<ApiDocs />} />
             </Routes>

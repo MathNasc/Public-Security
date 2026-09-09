@@ -1,5 +1,5 @@
-import { db } from '../db/index';
-import { geographicStates, geographicMunicipalities } from '../db/schema';
+import { db } from '../db/index.js';
+import { geographicStates, geographicMunicipalities } from '../db/schema.js';
 import { and, eq } from 'drizzle-orm';
 
 export class GeoNormalizationService {

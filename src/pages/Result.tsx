@@ -4,10 +4,10 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { MapContainer, TileLayer, Circle } from "react-leaflet";
 import { ShieldCheck, ShieldAlert, Shield, AlertTriangle, MapPin, Activity, Search, Database, GitCompare, BarChart3 } from "lucide-react";
 import * as motion from "motion/react-client";
-import { cn } from "../lib/utils";
-import { MapUpdater } from "../components/MapUtils";
-import { WatchRegionButton } from '../components/WatchRegionButton';
-import { AiSummary } from '../components/AiSummary';
+import { cn } from '../lib/utils.js';
+import { MapUpdater } from '../components/MapUtils.js';
+import { WatchRegionButton } from '../components/WatchRegionButton.js';
+import { AiSummary } from '../components/AiSummary.js';
 
 
 export function Result() {
@@ -35,7 +35,18 @@ export function Result() {
     if (period === "all_history") effectivePeriod = "all";
 
     fetch(`/api/analysis?lat=${lat}&lon=${lon}&radius=${radius}&period=${effectivePeriod}`)
-      .then(res => res.json())
+      .then(async res => {
+        if (!res.ok) {
+           const text = await res.text();
+           try {
+             const json = JSON.parse(text);
+             throw new Error(json.details || json.error || "Server error");
+           } catch(e) {
+             throw new Error(text);
+           }
+        }
+        return res.json();
+      })
       .then(d => {
         setData(d);
         setLoading(false);

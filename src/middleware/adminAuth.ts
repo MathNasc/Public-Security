@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { logger } from '../lib/logger';
+import { logger } from '../lib/logger.js';
 
 export const adminAuth = (req: Request, res: Response, next: NextFunction) => {
   const token = req.headers['authorization'] || req.headers['x-admin-token'];

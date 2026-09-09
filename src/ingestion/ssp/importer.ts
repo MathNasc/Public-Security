@@ -1,6 +1,6 @@
-import { parseSspCsv } from './parser';
-import { normalizeSspRecord } from './normalizer';
-import { DataIngestionService } from '../../services/DataIngestionService';
+import { parseSspCsv } from './parser.js';
+import { normalizeSspRecord } from './normalizer.js';
+import { DataIngestionService } from '../../services/DataIngestionService.js';
 import * as path from 'path';
 
 export async function importSspFile(filePath: string) {
