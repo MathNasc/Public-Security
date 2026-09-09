@@ -1,8 +1,8 @@
-import { db } from '../../db/index.js';
-import { ingestionJobs, rawStorage } from '../../db/schema.js';
+import { db } from '../../db/index';
+import { ingestionJobs, rawStorage } from '../../db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import crypto from 'crypto';
-import { JobManager } from '../pipeline/JobManager.js';
+import { JobManager } from '../pipeline/JobManager';
 
 export class JobWorker {
   private static workerId = crypto.randomUUID();

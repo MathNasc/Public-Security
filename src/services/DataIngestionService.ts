@@ -1,8 +1,8 @@
-import { db } from "../db/index.js";
-import { securityOccurrences, dataSources, dataImports } from "../db/schema.js";
+import { db } from '../db/index';
+import { securityOccurrences, dataSources, dataImports } from '../db/schema';
 import { eq } from "drizzle-orm";
-import { GeocodingService } from "./GeocodingService.js";
-import { RawCrimeRecord } from "../ingestion/ssp/normalizer.js";
+import { GeocodingService } from './GeocodingService';
+import { RawCrimeRecord } from '../ingestion/ssp/normalizer';
 
 export class DataIngestionService {
   static async ingestData(

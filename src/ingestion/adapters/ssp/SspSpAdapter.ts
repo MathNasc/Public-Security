@@ -1,8 +1,8 @@
-import { normalizeSspRecord } from '../../ssp/normalizer.js';
+import { normalizeSspRecord } from '../../ssp/normalizer';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { BaseAdapter, DiscoveryResult, AdapterMetadata, ParsedRecord } from "../BaseAdapter.js";
+import { BaseAdapter, DiscoveryResult, AdapterMetadata, ParsedRecord } from '../BaseAdapter';
 
 export class SspSpAdapter extends BaseAdapter {
   async discover(): Promise<DiscoveryResult> {

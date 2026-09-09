@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, MapPin } from "lucide-react";
+import { Search, MapPin, Navigation, Loader2 } from "lucide-react";
 import { cn } from "../lib/utils";
 
 export function SearchBar({ className }: { className?: string }) {
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [geoLoading, setGeoLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -25,6 +26,40 @@ export function SearchBar({ className }: { className?: string }) {
     }
   };
 
+
+  const handleLocateMe = () => {
+    if (!navigator.geolocation) {
+      alert("Geolocalização não suportada pelo seu navegador.");
+      return;
+    }
+    
+    setGeoLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          // Reverse geocoding option (optional)
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`, {
+            headers: { 'User-Agent': 'PublicSecurity/1.0' }
+          });
+          const data = await res.json();
+          const addressName = data.display_name || 'Localização Atual';
+          navigate(`/resultado?lat=${latitude}&lon=${longitude}&address=${encodeURIComponent(addressName)}`);
+        } catch (err) {
+          navigate(`/resultado?lat=${latitude}&lon=${longitude}&address=Localização%20Atual`);
+        } finally {
+          setGeoLoading(false);
+        }
+      },
+      (error) => {
+        setGeoLoading(false);
+        console.error("Erro ao obter localização:", error.message || error);
+        alert("Não foi possível acessar sua localização. Certifique-se de que o navegador tem permissão e recarregue a página.");
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
   const handleSelect = (item: any) => {
     navigate(`/resultado?lat=${item.latitude}&lon=${item.longitude}&address=${encodeURIComponent(item.formattedAddress)}`);
   };
@@ -39,15 +74,26 @@ export function SearchBar({ className }: { className?: string }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Digite um endereço, CEP ou local"
-          className="w-full bg-slate-800 border border-slate-700 rounded-xl py-4 pl-12 pr-32 text-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all text-slate-100 placeholder:text-slate-500"
+          className="w-full bg-slate-800 border border-slate-700 rounded-xl py-4 pl-12 pr-[180px] sm:pr-[200px] text-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all text-slate-100 placeholder:text-slate-500"
         />
-        <button
-          type="submit"
-          disabled={loading || !query}
-          className="absolute right-2 bg-slate-700 text-white px-5 py-2.5 rounded-lg font-medium hover:bg-slate-600 disabled:opacity-50 transition-colors"
-        >
-          {loading ? "Buscando..." : "Analisar"}
-        </button>
+        <div className="absolute right-2 flex items-center gap-1 sm:gap-2">
+          <button
+            type="button"
+            onClick={handleLocateMe}
+            disabled={geoLoading}
+            title="Usar minha localização atual"
+            className="p-2.5 text-slate-400 hover:text-amber-500 hover:bg-slate-700/50 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center"
+          >
+            {geoLoading ? <Loader2 className="w-5 h-5 animate-spin text-amber-500" /> : <Navigation className="w-5 h-5" />}
+          </button>
+          <button
+            type="submit"
+            disabled={loading || !query}
+            className="bg-slate-700 text-white px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg font-medium hover:bg-slate-600 disabled:opacity-50 transition-colors"
+          >
+            {loading ? "Buscando..." : "Analisar"}
+          </button>
+        </div>
       </form>
 
       {suggestions.length > 0 && (

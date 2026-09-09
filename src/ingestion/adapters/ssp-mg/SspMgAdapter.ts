@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { BaseAdapter, DiscoveryResult, AdapterMetadata, ParsedRecord } from "../BaseAdapter.js";
+import { BaseAdapter, DiscoveryResult, AdapterMetadata, ParsedRecord } from '../BaseAdapter';
 
 export class SspMgAdapter extends BaseAdapter {
   async discover(): Promise<DiscoveryResult> {

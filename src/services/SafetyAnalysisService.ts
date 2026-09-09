@@ -1,8 +1,8 @@
-import { db } from "../db/index.js";
-import { geographicMunicipalities, securityOccurrences, securityIndicators, dataImports, dataSources } from "../db/schema.js";
+import { db } from '../db/index';
+import { geographicMunicipalities, securityOccurrences, securityIndicators, dataImports, dataSources } from '../db/schema';
 import { eq, and, gte, lte, sql, desc, inArray } from "drizzle-orm";
-import { getPrimarySource } from "../ingestion/pipeline/SourcePriority.js";
-import { TAXONOMY_VERSION, normalizeLegacyCategory, getCategoryGroup, CanonicalCategory, CategoryGroup } from "./Taxonomy.js";
+import { getPrimarySource } from '../ingestion/pipeline/SourcePriority';
+import { TAXONOMY_VERSION, normalizeLegacyCategory, getCategoryGroup, CanonicalCategory, CategoryGroup } from './Taxonomy';
 
 export interface AnalysisRequest {
   lat: number;

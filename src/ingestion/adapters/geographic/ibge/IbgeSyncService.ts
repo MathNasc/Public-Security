@@ -1,6 +1,6 @@
-import { db } from '../../../../db/index.js';
-import { geographicStates, geographicMunicipalities } from '../../../../db/schema.js';
-import { GeoNormalizationService } from '../../../../services/GeoNormalizationService.js';
+import { db } from '../../../../db/index';
+import { geographicStates, geographicMunicipalities } from '../../../../db/schema';
+import { GeoNormalizationService } from '../../../../services/GeoNormalizationService';
 
 export class IbgeSyncService {
   

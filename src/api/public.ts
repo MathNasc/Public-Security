@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { db } from '../db/index.js';
-import { securityOccurrences, securityIndicators, geographicMunicipalities, geographicStates } from '../db/schema.js';
+import { db } from '../db/index';
+import { securityOccurrences, securityIndicators, geographicMunicipalities, geographicStates } from '../db/schema';
 import { desc, eq, and, sql } from 'drizzle-orm';
 
 const publicRouter = Router();

@@ -1,12 +1,12 @@
-import { db, queryClient } from '../../db/index.js';
-import { dataImports, securityOccurrences } from '../../db/schema.js';
+import { db, queryClient } from '../../db/index';
+import { dataImports, securityOccurrences } from '../../db/schema';
 import { eq, and, sql, isNull } from 'drizzle-orm';
-import { rawStorage } from './Storage.js';
+import { rawStorage } from './Storage';
 import { parse } from 'csv-parse';
-import { SspSpAdapter } from '../adapters/ssp/SspSpAdapter.js';
-import { SinespAdapter } from '../adapters/sinesp/SinespAdapter.js';
-import { IspRjAdapter } from '../adapters/isp-rj/IspRjAdapter.js';
-import { SspMgAdapter } from '../adapters/ssp-mg/SspMgAdapter.js';
+import { SspSpAdapter } from '../adapters/ssp/SspSpAdapter';
+import { SinespAdapter } from '../adapters/sinesp/SinespAdapter';
+import { IspRjAdapter } from '../adapters/isp-rj/IspRjAdapter';
+import { SspMgAdapter } from '../adapters/ssp-mg/SspMgAdapter';
 import { randomUUID } from 'crypto';
 
 const MAX_ATTEMPTS = 3;

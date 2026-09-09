@@ -1,5 +1,5 @@
-import { db } from "../db/index.js";
-import { geocodingCache } from "../db/schema.js";
+import { db } from '../db/index';
+import { geocodingCache } from '../db/schema';
 import { eq } from "drizzle-orm";
 
 export interface GeocodingResult {
