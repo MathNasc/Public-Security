@@ -256,7 +256,7 @@ export function Result() {
               <Activity className="w-4 h-4 text-slate-500" /> Comparação e Contexto
             </h3>
             <p className="text-sm text-slate-400 leading-relaxed max-w-3xl">
-              Nesta área, predomina-se a categoria de {data.statistics.breakdown.robberies > data.statistics.breakdown.thefts ? 'Roubos' : 'Furtos'}. O nível de análise georreferenciada é <strong className="text-slate-300">{data.result?.granularity === 'coordinate' ? 'Exato (coordenadas no raio)' : (data.result?.granularity === 'municipality' ? 'Municipal (diluído na cidade)' : 'Estadual')}</strong>. A metodologia Vizinhança v{data.result?.methodology} processou {data.dataSources?.length || 0} banco(s) de dados públicos para chegar a esta conclusão.
+              Nesta área, predomina-se a categoria de {data.statistics.breakdown.robberies > data.statistics.breakdown.thefts ? 'Roubos' : 'Furtos'}. O nível de análise georreferenciada é <strong className="text-slate-300">{data.result?.granularity === 'coordinate' ? 'Exato (coordenadas no raio)' : (data.result?.granularity === 'municipality' ? 'Municipal (diluído na cidade)' : 'Estadual')}</strong>. A metodologia Public Security v{data.result?.methodology} processou {data.dataSources?.length || 0} banco(s) de dados públicos para chegar a esta conclusão.
             </p>
           </div>
         </>

@@ -15,7 +15,7 @@ export function Home() {
       >
         <div className="space-y-4">
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-white leading-tight">
-            Descubra o histórico de segurança <br/><span className="text-amber-500">da sua vizinhança.</span>
+            Descubra o histórico de segurança <br/><span className="text-amber-500">da sua região.</span>
           </h1>
           <p className="text-lg text-slate-400 max-w-xl mx-auto">
             Consulte dados oficiais de criminalidade de qualquer rua ou cidade antes de ir a um evento, estacionar o carro ou se mudar.

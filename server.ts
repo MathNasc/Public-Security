@@ -222,7 +222,7 @@ app.get("/api/geocode", geocodeLimiter, async (req, res) => {
     }
 
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&addressdetails=1&limit=5&countrycodes=br`;
-    const response = await fetch(url, { headers: { 'User-Agent': 'VizinhancaMVP/1.0' } });
+    const response = await fetch(url, { headers: { 'User-Agent': 'PublicSecurity/1.0' } });
     const data = await response.json();
 
     const results = data.map((item: any) => ({
@@ -240,7 +240,7 @@ app.get("/api/geocode", geocodeLimiter, async (req, res) => {
     if (results.length === 0 && viaCepData) {
        const fallbackQuery = `${viaCepData.localidade}, ${viaCepData.uf}`;
        const fallbackUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(fallbackQuery)}&format=json&addressdetails=1&limit=1&countrycodes=br`;
-       const fallbackRes = await fetch(fallbackUrl, { headers: { 'User-Agent': 'VizinhancaMVP/1.0' } });
+       const fallbackRes = await fetch(fallbackUrl, { headers: { 'User-Agent': 'PublicSecurity/1.0' } });
        const fallbackData = await fallbackRes.json();
        if (fallbackData.length > 0) {
           results.push({

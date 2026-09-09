@@ -1,50 +1,62 @@
-# Vizinhança MVP
+# Public Security
 
-MVP de análise de segurança por região. Desenvolvido com uma arquitetura full-stack orientada a mapas e estatísticas locais.
+Plataforma de inteligência e dados de segurança pública. Um ecossistema de análise georreferenciada e estatísticas de segurança utilizando bases governamentais abertas (IBGE, SSP, SINESP).
 
-## Arquitetura
+## Visão Geral
 
-- **Frontend**: React (Vite), Tailwind CSS, React Router, Lucide Icons, Recharts (gráficos), React-Leaflet (mapas).
-- **Backend**: Express (Node.js) com TypeScript (tsx).
-- **Banco de Dados**: SQLite (via `@libsql/client`) e Drizzle ORM. Preparado estruturalmente para migração direta ao PostgreSQL/Supabase.
-- **Geocodificação**: Proxy local integrado ao Nominatim (OpenStreetMap).
+O Public Security consolida informações criminais fragmentadas do Brasil inteiro em um Dashboard moderno e oferece uma API Pública de consulta. O sistema possui geocodificação inteligente, extração assíncrona de boletins de ocorrência e processamento massivo via SQL.
 
-## Variáveis de Ambiente Necessárias
+## Arquitetura (Full-Stack)
 
-O arquivo `.env.example` já cobre a maioria das necessidades, mas você pode definir localmente:
+- **Frontend**: React 18, Vite, Tailwind CSS, Recharts, Lucide Icons. (Design Responsivo e Dark-Mode Native).
+- **Backend (Serverless Ready)**: Express.js nativo suportado via Vercel Serverless Functions (`api/index.ts`).
+- **Banco de Dados**: PostgreSQL na nuvem (via Supabase), modelado com Drizzle ORM. As consultas utilizam agregações SQL nativas de alto desempenho.
+- **Geocodificação Inteligente**: Hub hibrido que converte Endereços em Coordenadas via Nominatim e reconhece CEPs via cruza com a API ViaCEP.
+- **Orquestrador (JobWorker)**: Subsistema voltado para ETL (Extract, Transform, Load) dos dados massivos dos ministérios públicos e governos.
 
-```env
-DATABASE_URL="file:local.db"
-USE_MOCK_DATA="true"
+## Configuração do Ambiente
+
+1. **Variáveis de Ambiente**:
+Copie o arquivo de exemplo:
+```bash
+cp .env.example .env
+```
+Preencha a variável `DATABASE_URL` (com a string do PostgreSQL) e `ADMIN_SECRET` (para acesso administrativo).
+
+2. **Instalação e Migração**:
+```bash
+npm install
+npx drizzle-kit push
 ```
 
-## Como Executar Localmente
+3. **Iniciando o Servidor de Desenvolvimento**:
+```bash
+npm run dev
+```
+O servidor backend e o Vite (proxy/assets) vão subir simultaneamente na porta 3000.
 
-O ambiente já está configurado no `package.json` para rodar tanto o servidor Express quanto o Vite na porta 3000.
+## Estrutura do Projeto
 
-1. **Instale as dependências**:
-   ```bash
-   npm install
-   ```
+- `/src/pages`: Telas React (Dashboard Nacional, Home, Resultados, Admin, ApiDocs).
+- `/src/components`: UI escalável (Searchbar, Mapas, Cards).
+- `/src/api`: Rotas isoladas para a API Pública.
+- `/src/db`: Schema Drizzle e gerenciamento de Pool (Serverless friendly com `idle_timeout`).
+- `/src/ingestion`: Lógica de extração e padronização (Taxonomia) dos CSVs de governo.
+- `/server.ts`: O coração do Express contendo os roteamentos de Middleware e limites de segurança (Rate Limiters).
 
-2. **Gere e popule o banco de dados**:
-   ```bash
-   npm run db:generate
-   npm run db:migrate
-   npm run db:seed
-   ```
+## API Pública 
 
-3. **Inicie o servidor de desenvolvimento**:
-   ```bash
-   npm run dev
-   ```
+O repositório fornece uma API de acesso aberto (V1) que respeita regras de anonimização (LGPD) e oferece informações brutas e indicadores.
+Para mais informações sobre documentação de acesso, parâmetros (como `lat`, `lon` e `radius`) e cabeçalhos (`X-API-Key`), inicie o projeto e acesse a tela `/api-docs`.
 
-O MVP estará rodando em `http://localhost:3000`.
+## Deploy (Produção)
 
-## Instruções de Deploy (Vercel / Cloud Run)
+Este repositório já está configurado com `vercel.json` para ser hospedado diretamente pela Vercel em modo Serverless. 
 
-Para deploy na Vercel (Frontend) e Supabase (Backend/DB):
-1. Crie um projeto no Supabase e obtenha as strings de conexão PostgreSQL.
-2. Troque o dialeto no `drizzle.config.ts` para `postgresql` e atualize os pacotes do drizzle (`drizzle-orm/node-postgres`, `pg`).
-3. Mova as rotas da API para Serverless Functions (`/api/*`) do Vercel ou faça deploy do `server.ts` como um contêiner no Google Cloud Run.
-4. Adicione as chaves de API / DB URL no painel de Environment Variables de produção.
+1. Suba este repositório para o GitHub.
+2. Importe-o na Vercel (Framework Preset: Vite).
+3. Adicione a sua `DATABASE_URL` e `ADMIN_SECRET` no painel.
+4. Faça o deploy.
+
+---
+**Public Security &copy; 2026** - Código Aberto e Dados Governamentais.
