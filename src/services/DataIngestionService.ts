@@ -8,11 +8,11 @@ export class DataIngestionService {
   static async ingestData(
     sourceName: string, 
     records: RawCrimeRecord[],
-    sourceInfo: { provider: string, url: string, description: string, coverage: string, filename?: string }
+    sourceInfo: { provider: string, url: string, description: string, coverage: string, filename?: string, batchId?: string }
   ) {
     console.log(`Starting ingestion for ${sourceName} - ${records.length} records`);
     
-    const batchId = crypto.randomUUID();
+    const batchId = sourceInfo.batchId || crypto.randomUUID();
     
     let stats = {
       total_records: records.length,
@@ -107,14 +107,22 @@ export class DataIngestionService {
       }
 
       if (valuesToInsert.length > 0) {
-        await db.insert(securityOccurrences).values(valuesToInsert);
+        await db.insert(securityOccurrences).values(valuesToInsert).onConflictDoNothing({ target: [securityOccurrences.sourceId, securityOccurrences.sourceRecordId] });
       }
     }
 
     console.log(`Finished ingestion. Inserted ${stats.valid_records} valid records.`);
     
     // Save Batch Stats
-    await db.insert(dataImports).values({
+    const existingBatch = await db.query.dataImports.findFirst({ where: (di, { eq }) => eq(di.id, batchId) });
+    if (existingBatch) {
+      await db.update(dataImports).set({
+        recordsInserted: (existingBatch.recordsInserted || 0) + stats.valid_records,
+        recordsRejected: (existingBatch.recordsRejected || 0) + stats.rejected_records,
+        finishedAt: new Date()
+      }).where(eq(dataImports.id, batchId));
+    } else {
+      await db.insert(dataImports).values({
       id: batchId,
       sourceId: sourceName,
       status: "SUCCESS",
@@ -124,6 +132,7 @@ export class DataIngestionService {
       recordsRejected: stats.rejected_records,
       createdAt: new Date(),
     });
+    }
 
     // Update Data Source Metadata
     const existingSource = await db.query.dataSources.findFirst({

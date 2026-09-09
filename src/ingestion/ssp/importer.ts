@@ -1,46 +1,61 @@
-import { parseSspCsv } from './parser.js';
-import { normalizeSspRecord } from './normalizer.js';
+import { createSspCsvStream } from './parser.js';
+import { normalizeSspRecord, RawCrimeRecord } from './normalizer.js';
 import { DataIngestionService } from '../../services/DataIngestionService.js';
+import crypto from 'crypto';
 import * as path from 'path';
 
 export async function importSspFile(filePath: string) {
   try {
-    console.log(`[SSP INGESTION] Starting processing for file: ${filePath}`);
+    console.log(`[SSP INGESTION] Starting streaming processing for file: ${filePath}`);
     
-    // 1. Parse CSV
-    const rawRecords = await parseSspCsv(filePath);
-    console.log(`[SSP INGESTION] Parsed ${rawRecords.length} raw records from CSV.`);
-    
-    // 2. Normalize
-    const normalizedRecords = rawRecords.map(normalizeSspRecord);
-
-    console.log(`[SSP INGESTION] Normalized ${normalizedRecords.length} records.`);
-    
-    if (normalizedRecords.length === 0) {
-      console.log(`[SSP INGESTION] No valid records found to import.`);
-      return { success: false, message: 'No valid records found.' };
-    }
-
-    // 3. Import to DB
     const fileName = path.basename(filePath);
     const sourceName = `SSP-SP (${fileName})`;
-    
-    const result = await DataIngestionService.ingestData(sourceName, normalizedRecords, {
+    const sourceInfo = {
       provider: "Secretaria de Segurança Pública - SP",
       description: `Importação oficial do arquivo ${fileName}`,
       url: "http://www.ssp.sp.gov.br/transparenciassp/",
       coverage: "Estado de São Paulo",
-      filename: fileName
-    });
+      filename: fileName,
+      batchId: crypto.randomUUID()
+    };
     
-    console.log(`[SSP INGESTION] Successfully processed. Inserted ${result.stats.valid_records} valid records.`);
+    let chunk: RawCrimeRecord[] = [];
+    const CHUNK_SIZE = 1000;
+    
+    let totalRecords = 0;
+    let totalImported = 0;
+    
+    const stream = createSspCsvStream(filePath);
+    
+    for await (const rawRecord of stream) {
+      const normalized = normalizeSspRecord(rawRecord);
+      if (normalized) {
+        chunk.push(normalized);
+        totalRecords++;
+      }
+      
+      if (chunk.length >= CHUNK_SIZE) {
+        const result = await DataIngestionService.ingestData(sourceName, chunk, sourceInfo);
+        totalImported += result.inserted;
+        chunk = []; // reset chunk
+        console.log(`[SSP INGESTION] Progress: ${totalImported} records imported...`);
+      }
+    }
+    
+    // final chunk
+    if (chunk.length > 0) {
+      const result = await DataIngestionService.ingestData(sourceName, chunk, sourceInfo);
+      totalImported += result.inserted;
+      console.log(`[SSP INGESTION] Progress: ${totalImported} records imported...`);
+    }
+
+    console.log(`[SSP INGESTION] Successfully processed stream. Inserted ${totalImported} total records.`);
     
     return { 
-      success: true, 
-      inserted: result.stats.valid_records,
-      stats: result.stats,
-      batchId: result.batchId
+       success: true, 
+       inserted: totalImported,
     };
+
   } catch (error) {
     console.error(`[SSP INGESTION] Error processing file:`, error);
     throw error;

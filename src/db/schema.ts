@@ -223,7 +223,7 @@ export const geographicStates = pgTable("geographic_states", {
   acronym: text("acronym").notNull().unique(), // UF (e.g. SP, RJ)
   name: text("name").notNull(),
   region: text("region"),
-  geom: geometry("geom", { type: "MultiPolygon", mode: "xy", srid: 4326 }), // Polygons
+  geom: geometry("geom", { type: "Geometry", mode: "xy", srid: 4326 }), // Polygons
   createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).notNull(),
 });
@@ -237,7 +237,7 @@ export const geographicMunicipalities = pgTable("geographic_municipalities", {
   population: integer("population"), // From census/estimativas
   latitude: doublePrecision("latitude"), // Centroid
   longitude: doublePrecision("longitude"), // Centroid
-  geom: geometry("geom", { type: "MultiPolygon", mode: "xy", srid: 4326 }), // Polygons
+  geom: geometry("geom", { type: "Geometry", mode: "xy", srid: 4326 }), // Polygons
   createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).notNull(),
 }, (table) => ({
