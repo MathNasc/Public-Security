@@ -149,9 +149,9 @@ app.get("/api/dashboard/summary", async (req, res) => {
     
     res.json({
       total,
-      categoryData,
-      stateData,
-      trendData
+      byCategory: categoryData,
+      byState: stateData,
+      byTrend: trendData
     });
   } catch (error: any) {
     logger.error("Dashboard error", { event: "dashboard_error", error: error.message });

@@ -3,6 +3,19 @@ import { motion } from "motion/react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 import { Shield, Map, Activity, BarChart2 } from "lucide-react";
 
+const categoryMap: Record<string, string> = {
+  'homicidio_doloso': 'Homicídio Doloso',
+  'roubo_veiculo': 'Roubo de Veículo',
+  'furto_veiculo': 'Furto de Veículo',
+  'roubo_carga': 'Roubo de Carga',
+  'latrocinio': 'Latrocínio',
+  'estupro': 'Estupro',
+  'outros': 'Outros',
+  'robbery': 'Roubo',
+  'theft': 'Furto',
+  'vehicle_theft': 'Roubo/Furto de Veículo',
+};
+
 export function Dashboard() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -11,6 +24,12 @@ export function Dashboard() {
     fetch("/api/dashboard/summary")
       .then(r => r.json())
       .then(d => {
+        if (d.byCategory) {
+          d.byCategory = d.byCategory.map((c: any) => ({
+            ...c,
+            name: categoryMap[c.name] || c.name
+          }));
+        }
         setData(d);
         setLoading(false);
       })
@@ -45,13 +64,15 @@ export function Dashboard() {
     <div className="px-4 py-8 max-w-5xl mx-auto space-y-6 relative">
       <div className='absolute inset-0 opacity-10 pointer-events-none' style={{ backgroundImage: "radial-gradient(circle at 2px 2px, #475569 1px, transparent 0)", backgroundSize: "40px 40px" }}></div>
       
-      <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+      <div className="relative z-10 flex flex-col justify-between items-start gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-2">
             <BarChart2 className="w-8 h-8 text-amber-500" />
             Dashboard Nacional (SINESP)
           </h1>
-          <p className="text-slate-400 mt-1">Visão macroscópica de indicadores criminais agregados.</p>
+          <p className="text-slate-400 mt-2 max-w-3xl">
+            Este painel exibe uma visão consolidada de todo o banco de dados oficial importado do Sistema Nacional de Informações de Segurança Pública (SINESP). Ele serve como um <strong className="text-slate-300">panorama macroscópico</strong> para entender tendências gerais de criminalidade, comparar a situação entre os estados brasileiros e identificar os tipos de crimes mais incidentes em nível nacional ou regional ao longo do tempo.
+          </p>
         </div>
       </div>
 
