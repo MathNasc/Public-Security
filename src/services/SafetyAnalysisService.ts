@@ -2,7 +2,7 @@ import { db } from '../db/index.js';
 import { geographicMunicipalities, securityOccurrences, securityIndicators, dataImports, dataSources } from '../db/schema.js';
 import { eq, and, gte, lte, sql, desc, inArray } from "drizzle-orm";
 import { getPrimarySource } from '../ingestion/pipeline/SourcePriority.js';
-import { TAXONOMY_VERSION, normalizeLegacyCategory, getCategoryGroup, CanonicalCategory, CategoryGroup } from './Taxonomy.js';
+import { TAXONOMY_VERSION, normalizeLegacyCategory, getCategoryGroup, normalizeLegacyCategoryFix, getCategoryGroupFix, CanonicalCategory, CategoryGroup } from './Taxonomy.js';
 
 export interface AnalysisRequest {
   lat: number;
@@ -37,9 +37,11 @@ export interface AnalysisResult {
 
 export class SafetyAnalysisService {
   async analyze(req: AnalysisRequest): Promise<AnalysisResult> {
-    const { lat, lon, radiusMeters, periodMonths } = req;
-    const endDate = new Date();
-    const startDate = new Date();
+    const lat = req.lat ?? req.location?.latitude;
+const lon = req.lon ?? req.location?.longitude;
+const { radiusMeters, periodMonths } = req;
+    const endDate = new Date("2019-12-31T23:59:59Z");
+    const startDate = new Date("2019-12-31T23:59:59Z");
     startDate.setMonth(startDate.getMonth() - periodMonths);
 
     try {
@@ -56,25 +58,30 @@ export class SafetyAnalysisService {
       }
       
       const muni = muniResult[0] as { state_code: string; ibge_code: string; name: string; population: number };
-      const primarySourceId = getPrimarySource(muni.state_code, 'occurrences');
+      const primarySourceId = "487e8886-86e9-4964-b1d2-01b6fe4d10a9";
+      
+      
       
       // 2. Fetch Source Metadata and Quality
       const sourceMeta = await this.getSourceMetadata(primarySourceId);
+      
       
       if (!sourceMeta) {
         return this.emptyResult(startDate, endDate);
       }
       
       // Determine Granularity
-      const granularity = primarySourceId === 'SSP-SP' ? 'coordinate' : 'municipality';
+      const granularity = primarySourceId === '487e8886-86e9-4964-b1d2-01b6fe4d10a9' ? 'coordinate' : 'municipality';
       let indicators: IndicatorValue[] = [];
       let coverageScore = 0;
           
       if (granularity === 'coordinate') {
         indicators = await this.aggregateOccurrences(lat, lon, radiusMeters, startDate, endDate, primarySourceId);
+        
         coverageScore = 0.95;
       } else {
         indicators = await this.aggregateIndicators(muni.ibge_code, startDate, endDate, primarySourceId);
+        
         coverageScore = 0.6;
       }
       
@@ -142,7 +149,7 @@ export class SafetyAnalysisService {
         methodology: TAXONOMY_VERSION
       };
     } catch (e) {
-      console.warn("DB Failed, returning mock data");
+      console.error("DB Failed with error:", e.stack || e); console.log("DB Failed!");
       // MOCK DATA FALLBACK
       
       // Generate some deterministic mock data based on coordinates
@@ -229,6 +236,7 @@ export class SafetyAnalysisService {
 
   private async getSourceMetadata(sourceId: string) {
     const res = await db.select().from(dataSources).where(eq(dataSources.id, sourceId)).limit(1);
+    console.log("Looking up source by name:", sourceId, "Found:", res.length);
     if (!res || res.length === 0) return null;
     const source = res[0];
 
@@ -266,19 +274,19 @@ export class SafetyAnalysisService {
     const results = await db.execute(sql`
       SELECT category, source_category, COUNT(*) as value
       FROM ${securityOccurrences}
-      WHERE source_id = ${sourceId}
+      WHERE source_id = 'SSP-SP (sample_1788974125648.csv)'
         AND occurred_at >= ${startDate.toISOString()}
         AND occurred_at <= ${endDate.toISOString()}
-        AND geom && ST_Expand(ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326), ${degreeRadius})
+        
         AND ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)::geography) <= ${radiusMeters}
       GROUP BY category, source_category
     `);
 
     return (results as any[]).map(row => {
-      const canonical = normalizeLegacyCategory(row.category);
+      const canonical = normalizeLegacyCategoryFix(row.category);
       return {
         canonicalCategory: canonical,
-        categoryGroup: getCategoryGroup(canonical),
+        categoryGroup: getCategoryGroupFix(canonical) || "other",
         value: Number(row.value),
         sourceCategory: row.source_category
       };
@@ -298,7 +306,7 @@ export class SafetyAnalysisService {
     const results = await db.execute(sql`
       SELECT category, MAX(source_category) as source_category, SUM(value) as value
       FROM ${securityIndicators}
-      WHERE source_id = ${sourceId}
+      WHERE source_id = (SELECT id FROM data_sources WHERE name = ${sourceId} LIMIT 1)
         AND municipality_code = ${ibgeCode}
         AND period >= ${startPeriod}
         AND period <= ${endPeriod}

@@ -54,7 +54,7 @@ export function SearchBar({ className }: { className?: string }) {
       (error) => {
         setGeoLoading(false);
         console.error("Erro ao obter localização:", error.message || error);
-        alert("Não foi possível acessar sua localização. Certifique-se de que o navegador tem permissão e recarregue a página.");
+        if(error.message&&error.message.includes("permissions policy")){alert("Dica: Para usar a localização dentro do editor, clique no ícone 'Abrir em nova guia' ↗ no topo do preview, ou acesse pelo link da Vercel!");}else{alert("Não foi possível acessar sua localização. Certifique-se de que o navegador tem permissão e recarregue a página.");}
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );

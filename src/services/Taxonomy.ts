@@ -64,3 +64,18 @@ export function normalizeLegacyCategory(legacy: string): CanonicalCategory {
       return 'other';
   }
 }
+
+export function normalizeLegacyCategoryFix(legacy: string): CanonicalCategory {
+  const l = legacy.toLowerCase();
+  if (l.includes('veículo')) return 'vehicle_theft';
+  if (l.includes('pessoa')) return 'robbery';
+  if (l.includes('violento')) return 'violent_crime';
+  return 'other';
+}
+
+export function getCategoryGroupFix(category: CanonicalCategory | string): CategoryGroup {
+  if (category === 'vehicle_theft' || category === 'vehicle_robbery') return 'vehicle';
+  if (category === 'robbery' || category === 'theft') return 'property';
+  if (category === 'violent_crime' || category === 'homicide') return 'violent';
+  return 'other';
+}

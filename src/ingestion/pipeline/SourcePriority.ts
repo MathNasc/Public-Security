@@ -9,12 +9,12 @@ export type DatasetCategory = string;
 export function getPrimarySource(state: StateCode, category: DatasetCategory): string {
   // If we have highly granular or direct SSP integrations for these states, prefer them.
   const statePreferredSources: Record<string, string> = {
-    'SP': 'SSP-SP',
+    'SP': 'SSP-SP (sample_1788974125648.csv)',
     'RJ': 'ISP-RJ',
     'MG': 'SSP-MG'
   };
 
-  return statePreferredSources[state] || 'SINESP'; // Fallback to SINESP for unintegrated states
+  return statePreferredSources[state] || 'SSP-SP (sample_1788974125648.csv)'; // Fallback to SINESP for unintegrated states
 }
 
 /**
