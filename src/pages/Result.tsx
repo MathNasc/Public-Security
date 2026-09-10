@@ -281,7 +281,10 @@ export function Result() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
         <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className={cn("md:col-span-1 rounded-2xl p-6 border flex flex-col justify-center", bgScore)}>
-          <div className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-4">Safety Score</div>
+          <div className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-4 flex items-center">
+            Safety Score
+            <InfoTooltip text="O Safety Score é um índice de 0 a 100 calculado com base na densidade (área) e gravidade das ocorrências no período selecionado. Crimes violentos (como roubos) possuem um peso maior do que furtos no impacto da nota." />
+          </div>
           <div className="flex items-center gap-4 mb-4">
             <div className="relative flex items-center justify-center w-20 h-20 shrink-0">
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
