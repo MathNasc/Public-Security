@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-
+import axios from 'axios';
 import { BaseAdapter, DiscoveryResult, AdapterMetadata, ParsedRecord } from '../BaseAdapter.js';
 
 export class SinespAdapter extends BaseAdapter {
@@ -25,11 +25,30 @@ export class SinespAdapter extends BaseAdapter {
   }
 
   async download(destinationPath: string) {
-    // In production, uses axios stream to download this.officialUrl to destinationPath
-    // Since environment has DNS blocks for dados.mj.gov.br, we copy the local fixture
-    const fixturePath = path.join(process.cwd(), 'src/ingestion/adapters/sinesp/fixtures/sinesp_sample.csv');
-    fs.copyFileSync(fixturePath, destinationPath);
-    return destinationPath;
+    try {
+      console.log(`[SinespAdapter] Downloading real official dataset from ${this.officialUrl}`);
+      const response = await axios({
+        url: this.officialUrl,
+        method: 'GET',
+        responseType: 'stream'
+      });
+
+      const writer = fs.createWriteStream(destinationPath);
+      response.data.pipe(writer);
+
+      return new Promise<string>((resolve, reject) => {
+        writer.on('finish', () => resolve(destinationPath));
+        writer.on('error', reject);
+      });
+    } catch (e: any) {
+      console.warn(`[SinespAdapter] Network download failed (${e.message}). Falling back to local fixture if available...`);
+      const fixturePath = path.join(process.cwd(), 'src/ingestion/adapters/sinesp/fixtures/sinesp_sample.csv');
+      if (fs.existsSync(fixturePath)) {
+        fs.copyFileSync(fixturePath, destinationPath);
+        return destinationPath;
+      }
+      throw e;
+    }
   }
 
   metadata(): AdapterMetadata {
