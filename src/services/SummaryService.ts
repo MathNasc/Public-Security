@@ -27,11 +27,7 @@ DADOS ESTRUTURADOS:
 ${JSON.stringify(structuredData, null, 2)}`;
 
     const modelsToTry = [
-      'gemini-3.6-flash',
-      'gemini-3.7-flash',
-      'gemini-3.8-flash',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash'
+      'gemini-3.6-flash'
     ];
 
     for (const model of modelsToTry) {
@@ -55,7 +51,9 @@ ${JSON.stringify(structuredData, null, 2)}`;
             continue;
           }
           
-          console.error(`Failed to generate summary with model ${model}:`, error.message || error);
+          if (!is429) {
+            console.error(`Failed to generate summary with model ${model}:`, error.message || error);
+          }
           break; // Break the retry loop and go to next model
         }
       }

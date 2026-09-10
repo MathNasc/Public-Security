@@ -8,7 +8,8 @@ export interface AnalysisRequest {
   lat: number;
   lon: number;
   radiusMeters: number;
-  periodMonths: number;
+  periodString?: string;
+  periodMonths?: number;
 }
 
 export interface IndicatorValue {
@@ -33,16 +34,41 @@ export interface AnalysisResult {
   indicators: IndicatorValue[];
   trend: { percentage: number; label: string } | null;
   methodology: string;
+  exactOccurrences?: Array<{ latitude: number, longitude: number, category: string, date: string }>;
 }
 
 export class SafetyAnalysisService {
   async analyze(req: AnalysisRequest): Promise<AnalysisResult> {
     const lat = req.lat ?? req.location?.latitude;
 const lon = req.lon ?? req.location?.longitude;
-const { radiusMeters, periodMonths } = req;
-    const endDate = new Date("2019-12-31T23:59:59Z");
-    const startDate = new Date("2019-12-31T23:59:59Z");
-    startDate.setMonth(startDate.getMonth() - periodMonths);
+const { radiusMeters, periodMonths = 12, periodString = "12m" } = req;
+    let endDate = new Date("2019-12-31T23:59:59Z");
+    let startDate = new Date("2019-12-31T23:59:59Z");
+    
+    let effectiveMonths = periodMonths;
+    if (/^\d{4}$/.test(periodString)) {
+      const year = parseInt(periodString, 10);
+      startDate = new Date(`${year}-01-01T00:00:00Z`);
+      endDate = new Date(`${year}-12-31T23:59:59Z`);
+      effectiveMonths = 12;
+    } else if (periodString === "1w") {
+      startDate.setDate(startDate.getDate() - 7);
+      effectiveMonths = 0.25;
+    } else if (periodString === "1m") {
+      startDate.setMonth(startDate.getMonth() - 1);
+      effectiveMonths = 1;
+    } else if (periodString === "3m") {
+      startDate.setMonth(startDate.getMonth() - 3);
+      effectiveMonths = 3;
+    } else if (periodString === "6m") {
+      startDate.setMonth(startDate.getMonth() - 6);
+      effectiveMonths = 6;
+    } else if (periodString === "all") {
+      startDate.setFullYear(2010);
+      effectiveMonths = 120;
+    } else {
+      startDate.setMonth(startDate.getMonth() - periodMonths);
+    }
 
     try {
       // 1. Find Municipality for the given coordinate
@@ -73,10 +99,12 @@ const { radiusMeters, periodMonths } = req;
       // Determine Granularity
       const granularity = primarySourceId === '487e8886-86e9-4964-b1d2-01b6fe4d10a9' ? 'coordinate' : 'municipality';
       let indicators: IndicatorValue[] = [];
+    let exactOccurrences: any[] = [];
       let coverageScore = 0;
           
       if (granularity === 'coordinate') {
         indicators = await this.aggregateOccurrences(lat, lon, radiusMeters, startDate, endDate, primarySourceId);
+        exactOccurrences = await this.fetchExactOccurrences(lat, lon, radiusMeters, startDate, endDate, primarySourceId);
         
         coverageScore = 0.95;
       } else {
@@ -97,7 +125,7 @@ const { radiusMeters, periodMonths } = req;
       // 3. Compute Safety Score
       const prevEndDate = new Date(startDate);
       const prevStartDate = new Date(startDate);
-      prevStartDate.setMonth(prevStartDate.getMonth() - periodMonths);
+      prevStartDate.setTime(prevStartDate.getTime() - (endDate.getTime() - startDate.getTime()));
       
       let prevIndicators: IndicatorValue[] = [];
       if (granularity === 'coordinate') {
@@ -106,8 +134,8 @@ const { radiusMeters, periodMonths } = req;
         prevIndicators = await this.aggregateIndicators(muni.ibge_code, prevStartDate, prevEndDate, primarySourceId);
       }
       
-      const score = this.computeScore(indicators, granularity, radiusMeters, periodMonths, muni.population || 100000);
-      const previousScore = prevIndicators.length > 0 ? this.computeScore(prevIndicators, granularity, radiusMeters, periodMonths, muni.population || 100000) : null;
+      const score = this.computeScore(indicators, granularity, radiusMeters, effectiveMonths, muni.population || 100000);
+      const previousScore = prevIndicators.length > 0 ? this.computeScore(prevIndicators, granularity, radiusMeters, effectiveMonths, muni.population || 100000) : null;
           
       const trendData = {
         previousPeriod: { start: prevStartDate.toISOString(), end: prevEndDate.toISOString() },
@@ -145,6 +173,7 @@ const { radiusMeters, periodMonths } = req;
           quality_score: sourceMeta.qualityScore
         }],
         indicators,
+        exactOccurrences,
         trend: trendData as any,
         methodology: TAXONOMY_VERSION
       };
@@ -267,6 +296,25 @@ const { radiusMeters, periodMonths } = req;
       qualityScore,
       lastImportDate
     };
+  }
+
+  
+  private async fetchExactOccurrences(lat: number, lon: number, radiusMeters: number, startDate: Date, endDate: Date, sourceId: string) {
+    const results = await db.execute(sql`
+      SELECT category, ST_Y(geom::geometry) as latitude, ST_X(geom::geometry) as longitude, occurred_at
+      FROM ${securityOccurrences}
+      WHERE source_id = 'SSP-SP (sample_1788974125648.csv)'
+        AND occurred_at >= ${startDate.toISOString()}
+        AND occurred_at <= ${endDate.toISOString()}
+        AND ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)::geography) <= ${radiusMeters}
+      LIMIT 100
+    `);
+    return (results as any[]).map(row => ({
+      latitude: Number(row.latitude),
+      longitude: Number(row.longitude),
+      category: normalizeLegacyCategoryFix(row.category),
+      date: new Date(row.occurred_at).toISOString()
+    }));
   }
 
   private async aggregateOccurrences(lat: number, lon: number, radiusMeters: number, startDate: Date, endDate: Date, sourceId: string): Promise<IndicatorValue[]> {

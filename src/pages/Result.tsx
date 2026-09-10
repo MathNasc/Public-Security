@@ -1,14 +1,25 @@
 import React from "react";
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { MapContainer, TileLayer, Circle } from "react-leaflet";
-import { ShieldCheck, ShieldAlert, Shield, AlertTriangle, MapPin, Activity, Search, Database, GitCompare, BarChart3 } from "lucide-react";
+import { MapContainer, TileLayer, Circle, CircleMarker, Popup, Tooltip } from "react-leaflet";
+import { ShieldCheck, ShieldAlert, Shield, AlertTriangle, MapPin, Activity, Search, Database, GitCompare, BarChart3, Info } from "lucide-react";
 import * as motion from "motion/react-client";
 import { cn } from '../lib/utils.js';
 import { MapUpdater } from '../components/MapUtils.js';
 import { WatchRegionButton } from '../components/WatchRegionButton.js';
 import { AiSummary } from '../components/AiSummary.js';
 
+const InfoTooltip = ({ text }: { text: string }) => {
+  return (
+    <div className="group relative inline-flex items-center ml-1.5 cursor-help" tabIndex={0}>
+      <Info className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300 group-focus:text-slate-300 transition-colors" />
+      <div className="opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus:opacity-100 group-focus:visible transition-all absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 text-xs text-slate-200 bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-50 text-center pointer-events-none">
+        {text}
+        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-700"></div>
+      </div>
+    </div>
+  );
+};
 
 export function Result() {
   const [searchParams] = useSearchParams();
@@ -21,11 +32,18 @@ export function Result() {
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showCustomYear, setShowCustomYear] = useState(period.match(/^\d{4}$/) !== null);
 
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [isComparing, setIsComparing] = useState(false);
+
+  const handleFilterChange = (key: string, value: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set(key, value);
+    navigate(`/resultado?${newParams.toString()}`);
+  };
 
   useEffect(() => {
     if (!lat || !lon) return;
@@ -177,6 +195,89 @@ export function Result() {
         </div>
       </div>
 
+      {/* Filtros */}
+      <div className="bg-slate-800 rounded-2xl p-4 shadow-xl border border-slate-700/50 flex flex-col md:flex-row gap-4 items-start md:items-center mb-8">
+        
+        {/* Filtro Período */}
+        <div className="flex flex-col sm:flex-row w-full md:w-auto items-start sm:items-center gap-3">
+          <label htmlFor="period-select" className="text-slate-400 text-sm font-medium whitespace-nowrap">
+            Período:
+          </label>
+          <div className="flex flex-row w-full sm:w-auto gap-3">
+            <div className="relative flex-1 sm:flex-none">
+              <select
+                id="period-select"
+                value={showCustomYear ? 'custom' : period}
+                onChange={(e) => {
+                  if (e.target.value === 'custom') {
+                    setShowCustomYear(true);
+                  } else {
+                    setShowCustomYear(false);
+                    handleFilterChange('period', e.target.value);
+                  }
+                }}
+                className="w-full appearance-none bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded-lg pl-4 pr-10 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-colors cursor-pointer"
+              >
+                <option value="1w">Última Semana</option>
+                <option value="1m">Último Mês</option>
+                <option value="3m">Últimos 3 Meses</option>
+                <option value="6m">Últimos 6 Meses</option>
+                <option value="12m">Último Ano</option>
+                <option value="all">Todo o Período</option>
+                <option value="custom">Ano Específico...</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                  <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                </svg>
+              </div>
+            </div>
+            
+            {showCustomYear && (
+              <input
+                id="custom-year"
+                type="number"
+                placeholder="Ex: 2019"
+                autoFocus
+                defaultValue={period.match(/^\d{4}$/) ? period : ""}
+                onBlur={(e) => {
+                  if (e.target.value.length === 4) handleFilterChange('period', e.target.value);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.currentTarget.value.length === 4) handleFilterChange('period', e.currentTarget.value);
+                }}
+                className="bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2.5 w-24 flex-none focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-colors"
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Filtro Raio */}
+        <div className="flex flex-col sm:flex-row w-full md:w-auto items-start sm:items-center gap-3">
+          <label htmlFor="radius-select" className="text-slate-400 text-sm font-medium whitespace-nowrap">
+            Raio:
+          </label>
+          <div className="relative w-full sm:w-auto">
+            <select
+              id="radius-select"
+              value={radius}
+              onChange={(e) => handleFilterChange('radius', e.target.value)}
+              className="w-full appearance-none bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded-lg pl-4 pr-10 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-colors cursor-pointer"
+            >
+              <option value="500">500 metros</option>
+              <option value="1000">1 quilômetro</option>
+              <option value="2000">2 quilômetros</option>
+              <option value="5000">5 quilômetros</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+              <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
         <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className={cn("md:col-span-1 rounded-2xl p-6 border flex flex-col justify-center", bgScore)}>
@@ -223,12 +324,34 @@ export function Result() {
             zoomControl={false}
           >
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+              attribution={import.meta.env.VITE_MAPBOX_TOKEN ? '© <a href="https://www.mapbox.com/about/maps/">Mapbox</a>' : 'Powered by <a href="https://www.esri.com/">Esri</a>'}
+              url={import.meta.env.VITE_MAPBOX_TOKEN ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/256/{z}/{x}/{y}@2x?access_token=${import.meta.env.VITE_MAPBOX_TOKEN}` : 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'}
             />
             {data.result?.granularity === 'coordinate' && (
               <Circle center={center} pathOptions={{ color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 0.1 }} radius={parseFloat(radius)} />
             )}
+            {data.exactOccurrences?.map((occ: any, index: number) => {
+              const color = occ.category === 'robbery' ? '#f87171' : 
+                            occ.category === 'theft' ? '#fbbf24' : 
+                            occ.category === 'vehicle_theft' ? '#60a5fa' : '#94a3b8';
+              return (
+                <CircleMarker 
+                  key={index}
+                  center={[occ.latitude, occ.longitude]}
+                  radius={5}
+                  pathOptions={{ color: '#1e293b', fillColor: color, fillOpacity: 0.9, weight: 1.5 }}
+                >
+                  <Tooltip direction="top" offset={[0, -5]} opacity={1}>
+                    <div className="font-semibold text-xs text-slate-800">
+                      {occ.category === 'robbery' ? 'Roubo' : occ.category === 'theft' ? 'Furto' : occ.category === 'vehicle_theft' ? 'Furto/Roubo de Veículo' : 'Outros'}
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      {new Date(occ.date).toLocaleDateString('pt-BR')}
+                    </div>
+                  </Tooltip>
+                </CircleMarker>
+              );
+            })}
             <MapUpdater center={center} zoom={data.result?.granularity === 'coordinate' ? 14 : 11} />
           </MapContainer>
         </motion.div>
@@ -244,19 +367,28 @@ export function Result() {
             </div>
             
             <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-5">
-              <span className="text-sm font-medium text-slate-400 block mb-1">Furtos</span>
+              <span className="text-sm font-medium text-slate-400 mb-1 flex items-center">
+                Furtos
+                <InfoTooltip text="Subtração de bens sem o uso de violência ou grave ameaça à vítima." />
+              </span>
               <span className="text-2xl font-bold text-amber-400 block">{data.statistics.breakdown.thefts}</span>
               <span className="text-xs text-slate-500">{Math.round((data.statistics.breakdown.thefts / (data.statistics.total || 1)) * 100)}% do total</span>
             </div>
 
             <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-5">
-              <span className="text-sm font-medium text-slate-400 block mb-1">Roubos</span>
+              <span className="text-sm font-medium text-slate-400 mb-1 flex items-center">
+                Roubos
+                <InfoTooltip text="Subtração de bens com emprego de violência ou grave ameaça à vítima." />
+              </span>
               <span className="text-2xl font-bold text-red-400 block">{data.statistics.breakdown.robberies}</span>
               <span className="text-xs text-slate-500">{Math.round((data.statistics.breakdown.robberies / (data.statistics.total || 1)) * 100)}% do total</span>
             </div>
 
             <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-5">
-              <span className="text-sm font-medium text-slate-400 block mb-1">Veículos</span>
+              <span className="text-sm font-medium text-slate-400 mb-1 flex items-center">
+                Veículos
+                <InfoTooltip text="Ocorrências de furtos e roubos que envolvem especificamente veículos automotores." />
+              </span>
               <span className="text-2xl font-bold text-blue-400 block">{data.statistics.breakdown.vehicles}</span>
               <span className="text-xs text-slate-500">{Math.round((data.statistics.breakdown.vehicles / (data.statistics.total || 1)) * 100)}% do total</span>
             </div>

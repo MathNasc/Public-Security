@@ -252,14 +252,14 @@ app.get("/api/analysis", publicApiLimiter, async (req, res) => {
   
   try {
     
-  const cacheKey = `${latitude}_${longitude}_${radiusMeters}_${periodMonths}`;
+  const cacheKey = `${latitude}_${longitude}_${radiusMeters}_${period}`;
   const cached = analysisCache.get(cacheKey);
   if (cached) {
     return res.json(cached);
   }
 
     const service = new SafetyAnalysisService();
-    const result = await service.analyze({ lat: latitude, lon: longitude, radiusMeters, periodMonths });
+    const result = await service.analyze({ lat: latitude, lon: longitude, radiusMeters, periodMonths, periodString: period as string });
     
     // We send back both the new structure AND some legacy fields so the frontend doesn't break entirely if we miss a spot.
     
@@ -283,7 +283,7 @@ app.get("/api/analysis", publicApiLimiter, async (req, res) => {
         }
       },
       dataSources: result.sources,
-      exactOccurrences: [],
+      exactOccurrences: result.exactOccurrences || [],
       trend: []
     };
     analysisCache.set(cacheKey, responsePayload);
