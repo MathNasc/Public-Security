@@ -24,6 +24,7 @@ services:
 
   db:
     image: postgis/postgis:15-3.4-alpine
+    platform: linux/amd64
     container_name: vizinhanca_db
     environment:
       - POSTGRES_USER=vizinhan_user
