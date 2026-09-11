@@ -9,6 +9,8 @@ services:
     ports:
       # Expondo na porta 3008 por padrão para evitar conflitos (o container roda internamente na 3000)
       - "${APP_PORT:-3008}:3000"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
       - PORT=3000
