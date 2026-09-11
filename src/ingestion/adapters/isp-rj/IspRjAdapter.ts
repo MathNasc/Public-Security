@@ -1,76 +1,95 @@
-import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
 import { BaseAdapter, DiscoveryResult, AdapterMetadata, ParsedRecord } from '../BaseAdapter.js';
+import crypto from 'crypto';
 
+/**
+ * Adapter para ISP-RJ (Instituto de Segurança Pública do Rio de Janeiro)
+ * Focado na ingestão da "BaseDP" (Estatísticas Criminais por Delegacia/Município mensal).
+ */
 export class IspRjAdapter extends BaseAdapter {
-  async discover(): Promise<DiscoveryResult> {
+  metadata(): AdapterMetadata {
     return {
-      source: 'ISP-RJ',
-      dataset: 'indicadores_municipais',
-      url: 'https://www.ispdados.rj.gov.br/Arquivos/BaseMunicipioMensal.csv',
-      version: this.identifyVersion(),
-      checksum: crypto.createHash('sha256').update('isp-rj-version-mock').digest('hex')
+      name: "Estatísticas Criminais BaseDP",
+      agency: "Instituto de Segurança Pública (ISP-RJ)",
+      frequency: "Mensal",
+      coverage: "RJ",
+      limitations: [
+        "BaseDP agrega por Delegacia (CISP), requerendo cruzamento para totalizar município",
+        "Atraso padrão de publicação (45 a 60 dias)"
+      ]
     };
   }
 
   identifyVersion(): string {
-    return '2024-01'; // Mocked
+    return "1.0.0";
   }
 
-  async download(destinationPath: string): Promise<string> {
-    const fixturePath = path.join(process.cwd(), 'src/ingestion/adapters/isp-rj/fixtures/isp_rj_sample.csv');
-    fs.copyFileSync(fixturePath, destinationPath);
-    return destinationPath;
-  }
+  async discover(): Promise<DiscoveryResult> {
+    // O ISP-RJ disponibiliza dados abertos no portal (http://www.ispdados.rj.gov.br/)
+    // O arquivo principal é o BaseMunicipioMensal ou BaseDPMensal
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth();
+    
+    const url = `http://www.ispdados.rj.gov.br/Arquivos/BaseMunicipioMensal.csv`; 
 
-  metadata(): AdapterMetadata {
     return {
-      name: 'Base de Dados de Municípios (Mensal) - ISP/RJ',
-      agency: 'Instituto de Segurança Pública do Rio de Janeiro',
-      frequency: 'Mensal',
-      coverage: 'Estadual (RJ)',
-      limitations: ['Agregado por município', 'Sem coordenadas', 'Formato horizontal (colunas por crime)']
+      source: "ISP-RJ",
+      dataset: "Estatisticas_Criminais",
+      url: url,
+      version: `${currentYear}-${currentMonth}`,
+      checksum: crypto.randomBytes(16).toString('hex')
     };
   }
 
-  parseRow(row: any): ParsedRecord[] | null {
-    if (!row.ano || !row.mes || !row.fmun) return null;
-    
-    const mm = row.mes.toString().padStart(2, '0');
-    const period = `${row.ano}-${mm}`;
-    const ibgeCode = row.fmun.toString();
-    const records: ParsedRecord[] = [];
+  async download(destinationPath: string): Promise<string> {
+    console.log(`[ISP-RJ Adapter] Iniciando extração dos dados... Simulando download para ${destinationPath}`);
+    return destinationPath;
+  }
 
-    const categories = [
-      { key: 'hom_doloso', internal: 'homicidio_doloso' },
-      { key: 'latrocinio', internal: 'latrocinio' },
-      { key: 'roubo_veiculo', internal: 'roubo_veiculo' },
-      { key: 'furto_veiculos', internal: 'furto_veiculo' }
+  parseRow(row: any): ParsedRecord[] | ParsedRecord | null {
+    // O CSV do ISP-RJ possui formato "largo" (wide), onde cada tipo de crime é uma coluna
+    // Ex colunas: fmun, ano, mes, hom_doloso, latrocinio, roubo_veiculo, furto_veiculos, estupro
+    
+    const records: ParsedRecord[] = [];
+    
+    // Pula linhas vazias
+    if (!row['ano'] || !row['fmun']) return null;
+
+    const municipio = row['fmun'];
+    const ano = row['ano'];
+    const mes = String(row['mes']).padStart(2, '0');
+    const periodStr = `${ano}-${mes}`;
+
+    // Dicionário de crimes (Coluna no CSV do ISP -> Nossa taxonomia)
+    const crimesToMap = [
+      { ispCol: 'hom_doloso', category: 'homicidio' },
+      { ispCol: 'latrocinio', category: 'latrocinio' },
+      { ispCol: 'roubo_veiculo', category: 'roubo_veiculo' },
+      { ispCol: 'furto_veiculos', category: 'furto_veiculo' },
+      { ispCol: 'estupro', category: 'estupro' },
+      { ispCol: 'roubo_transeunte', category: 'roubo' },
+      { ispCol: 'furto_transeunte', category: 'furto' }
     ];
 
-    for (const cat of categories) {
-      if (row[cat.key] !== undefined && row[cat.key] !== '') {
-        const val = parseInt(row[cat.key], 10);
-        if (!isNaN(val)) {
-          records.push({
-            target: 'indicators',
-            data: {
-              sourceId: 'ISP-RJ',
-              datasetId: 'indicadores_municipais',
-              stateCode: 'RJ',
-              municipalityCode: ibgeCode,
-              municipalityName: row.munic,
-              category: cat.internal,
-              sourceCategory: cat.key,
-              period: period,
-              value: val,
-              unit: 'occurrences'
-            }
-          });
-        }
+    crimesToMap.forEach(mapping => {
+      const valor = parseInt(row[mapping.ispCol] || '0', 10);
+      
+      if (!isNaN(valor) && valor > 0) {
+        records.push({
+          target: 'indicators',
+          data: {
+            id: crypto.randomUUID(),
+            sourceId: 'ISP-RJ',
+            stateCode: 'RJ',
+            municipalityName: municipio, // Worker vai tentar achar o IBGE Code
+            category: mapping.category,
+            sourceCategory: mapping.ispCol,
+            period: periodStr,
+            value: valor,
+            unit: 'ocorrencias'
+          }
+        });
       }
-    }
+    });
 
     return records.length > 0 ? records : null;
   }

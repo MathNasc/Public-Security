@@ -4,6 +4,7 @@ import { eq, and, sql, isNull } from 'drizzle-orm';
 import { rawStorage } from './Storage.js';
 import { parse } from 'csv-parse';
 import { SspSpAdapter } from '../adapters/ssp/SspSpAdapter.js';
+import { IspRjAdapter } from '../adapters/isp-rj/IspRjAdapter.js';
 import { SinespAdapter } from '../adapters/sinesp/SinespAdapter.js';
 import { IspRjAdapter } from '../adapters/isp-rj/IspRjAdapter.js';
 import { SspMgAdapter } from '../adapters/ssp-mg/SspMgAdapter.js';
