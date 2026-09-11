@@ -18,8 +18,12 @@ export class JobWorker {
     this.isWorking = true;
     try {
       await this.work();
-    } catch (e) {
-      console.error(`[JobWorker ${this.workerId}] Error in work loop:`, e);
+    } catch (e: any) {
+      if (e.message && e.message.includes("ENOTFOUND")) {
+        // silent fail for db offline
+      } else {
+        console.error(`[JobWorker ${this.workerId}] Error in work loop:`, e);
+      }
     } finally {
       this.isWorking = false;
     }

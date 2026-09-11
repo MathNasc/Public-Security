@@ -52,7 +52,19 @@ export class IngestionWorker {
     this.isRunning = true;
     console.log(`[Worker ${this.workerId}] Started`);
     while (this.isRunning) {
-      const job = await this.claimJob();
+      let job;
+      try {
+        job = await this.claimJob();
+      } catch (e: any) {
+        if (e.message && e.message.includes('ENOTFOUND')) {
+          console.warn(`[Worker ${this.workerId}] DB unavailable, sleeping...`);
+          await new Promise(r => setTimeout(r, 15000));
+          continue;
+        }
+        console.error(`[Worker ${this.workerId}] Error claiming job:`, e);
+        await new Promise(r => setTimeout(r, 5000));
+        continue;
+      }
       if (job) {
         await this.processJob(job);
       } else {

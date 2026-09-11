@@ -31,8 +31,12 @@ export class Scheduler {
       await this.runDiscovery();
       await this.dispatchJobs();
       await this.recoverStuckJobs();
-    } catch (e) {
-      if (e.message && e.message.includes("ENOTFOUND")) { console.warn("[Scheduler] Banco de dados offline ou inacessível no ambiente atual."); } else { console.error("[Scheduler] Error in tick:", e); }
+    } catch (e: any) {
+      if (e.message && e.message.includes("ENOTFOUND")) {
+        console.warn("[Scheduler] Banco de dados offline ou inacessível no ambiente atual.");
+      } else {
+        console.error("[Scheduler] Error in tick:", e);
+      }
     } finally {
       this.isRunning = false;
     }
