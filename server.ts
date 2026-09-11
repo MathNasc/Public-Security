@@ -360,7 +360,23 @@ app.get("/api/data-sources", async (req, res) => {
         { id: 'SDS-PE', name: 'Estatísticas SDS', provider: 'SDS PE', coverage: 'PE', status: 'Ativo' },
         { id: 'SSPDS-CE', name: 'Indicadores SSPDS', provider: 'SSPDS CE', coverage: 'CE', status: 'Ativo' },
         { id: 'SSP-DF', name: 'Estatísticas DF', provider: 'SSP DF', coverage: 'DF', status: 'Ativo' },
-        { id: 'SSP-GO', name: 'Ocorrências Criminais GO', provider: 'SSP GO', coverage: 'GO', status: 'Ativo' }
+        { id: 'SSP-GO', name: 'Ocorrências Criminais GO', provider: 'SSP GO', coverage: 'GO', status: 'Ativo' },
+        { id: 'SESP-AC', name: 'Ocorrências Criminais AC', provider: 'SESP AC', coverage: 'AC', status: 'Ativo' },
+        { id: 'SSP-AL', name: 'Ocorrências Criminais AL', provider: 'SSP AL', coverage: 'AL', status: 'Ativo' },
+        { id: 'SSP-AM', name: 'Ocorrências Criminais AM', provider: 'SSP AM', coverage: 'AM', status: 'Ativo' },
+        { id: 'SEJUSP-AP', name: 'Ocorrências Criminais AP', provider: 'SEJUSP AP', coverage: 'AP', status: 'Ativo' },
+        { id: 'SESP-ES', name: 'Ocorrências Criminais ES', provider: 'SESP ES', coverage: 'ES', status: 'Ativo' },
+        { id: 'SSP-MA', name: 'Ocorrências Criminais MA', provider: 'SSP MA', coverage: 'MA', status: 'Ativo' },
+        { id: 'SESP-MT', name: 'Ocorrências Criminais MT', provider: 'SESP MT', coverage: 'MT', status: 'Ativo' },
+        { id: 'SEJUSP-MS', name: 'Ocorrências Criminais MS', provider: 'SEJUSP MS', coverage: 'MS', status: 'Ativo' },
+        { id: 'SEGUP-PA', name: 'Ocorrências Criminais PA', provider: 'SEGUP PA', coverage: 'PA', status: 'Ativo' },
+        { id: 'SEDS-PB', name: 'Ocorrências Criminais PB', provider: 'SEDS PB', coverage: 'PB', status: 'Ativo' },
+        { id: 'SSP-PI', name: 'Ocorrências Criminais PI', provider: 'SSP PI', coverage: 'PI', status: 'Ativo' },
+        { id: 'SESED-RN', name: 'Ocorrências Criminais RN', provider: 'SESED RN', coverage: 'RN', status: 'Ativo' },
+        { id: 'SESDEC-RO', name: 'Ocorrências Criminais RO', provider: 'SESDEC RO', coverage: 'RO', status: 'Ativo' },
+        { id: 'SESP-RR', name: 'Ocorrências Criminais RR', provider: 'SESP RR', coverage: 'RR', status: 'Ativo' },
+        { id: 'SSP-SE', name: 'Ocorrências Criminais SE', provider: 'SSP SE', coverage: 'SE', status: 'Ativo' },
+        { id: 'SSP-TO', name: 'Ocorrências Criminais TO', provider: 'SSP TO', coverage: 'TO', status: 'Ativo' },
 
       ];
       
