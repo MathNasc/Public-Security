@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vizinhanca_app
+    ports:
+      # Expondo na porta 3008 por padrão para evitar conflitos (o container roda internamente na 3000)
+      - "${APP_PORT:-3008}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgresql://vizinhan_user:VizinhanSecr3t2026@db:5432/vizinhanca_db
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    command: >
+      sh -c "drizzle-kit push && npm run start"
+    networks:
+      - vizinhanca_net
+
+  db:
+    image: postgres:15-alpine
+    container_name: vizinhanca_db
+    environment:
+      - POSTGRES_USER=vizinhan_user
+      - POSTGRES_PASSWORD=VizinhanSecr3t2026
+      - POSTGRES_DB=vizinhanca_db
+    volumes:
+      - vizinhanca_pgdata:/var/lib/postgresql/data
+    # A PORTA EXTERNA (5432) FOI REMOVIDA PARA EVITAR CONFLITO COM OUTRO POSTGRES NO SERVIDOR
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vizinhan_user -d vizinhanca_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - vizinhanca_net
+
+# Isolando o aplicativo na sua própria rede Docker
+networks:
+  vizinhanca_net:
+    name: vizinhanca_network
+
+volumes:
+  # Nome de volume específico para evitar conflito com pastas 'pgdata' de outros projetos
+  vizinhanca_pgdata:

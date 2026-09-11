@@ -1,0 +1,30 @@
+name: Auto Deploy to Oracle VPS
+
+on:
+  push:
+    branches:
+      - main # O deploy será acionado automaticamente ao subir código para a branch 'main'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Executando pull e build via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            # Navega até o diretório do projeto no servidor (ajuste o caminho no secrets se preferir)
+            cd ${{ secrets.PROJECT_PATH }}
+            
+            echo "Iniciando atualização do repositório..."
+            git reset --hard
+            git pull origin main
+            
+            echo "Permissões do script de deploy..."
+            chmod +x deploy.sh
+            
+            echo "Executando rebuild..."
+            ./deploy.sh
