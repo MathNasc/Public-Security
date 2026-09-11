@@ -392,6 +392,13 @@ app.get("/api/data-sources", async (req, res) => {
       sources = await db.select().from(dataSources);
     }
     
+    if (sources && sources.length > 0) {
+      sources.sort((a, b) => {
+        if (a.id === 'sinesp') return -1;
+        if (b.id === 'sinesp') return 1;
+        return a.name.localeCompare(b.name);
+      });
+    }
     res.json(sources || []);
   } catch (err: any) {
     if (err.message && err.message.includes("ENOTFOUND")) {
@@ -450,9 +457,9 @@ app.post("/api/admin/upload-ssp", adminAuth, upload.single("file"), async (req, 
       jobId: jobId 
     });
   } catch (error: any) {
-    logger.error("SSP upload processing error", { event: "ssp_upload_error", error: error.message });
+    logger.error("SSP upload processing error", { event: "ssp_upload_error", error: error.message, cause: error.cause ? error.cause.message : null });
     if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    res.status(500).json({ error: "Failed to queue SSP file", details: error.message });
+    res.status(500).json({ error: "Failed to queue SSP file", details: error.message, cause: error.cause ? error.cause.message : null });
   }
 });
 
@@ -542,15 +549,6 @@ app.get("/api/admin/ingestion/status", async (req, res) => {
         { id: 'ds-2', sourceId: 'SSP-SP', name: 'SSP-SP Ocorrências', status: 'healthy', enabled: true }
       ]
     });
-  }
-});
-
-app.post("/api/admin/ingestion/discovery", async (req, res) => {
-  try {
-    globalScheduler.tick(); // Force tick
-    res.json({ success: true, message: "Discovery triggered" });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
   }
 });
 

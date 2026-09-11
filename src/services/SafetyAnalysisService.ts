@@ -114,10 +114,32 @@ const { radiusMeters, periodMonths = 12, periodString = "12m" } = req;
         muni = muniResult[0];
       }
       
-      const primarySourceId = "sinesp";
-
+      let primarySourceId = "sinesp";
       
+      const stateSourceMap: Record<string, string> = {
+         'SP': 'ssp-sp',
+         'RJ': 'isp-rj',
+         'MG': 'ssp-mg',
+         'DF': 'ssp-df',
+         'ES': 'ssp-es',
+         'RS': 'ssp-rs'
+      };
       
+      let stateSourceId = stateSourceMap[muni.state_code] || `ssp-${muni.state_code.toLowerCase()}`;
+      
+      // Try state source first
+      let indicators: IndicatorValue[] = [];
+      let exactOccurrences: any[] = [];
+      const granularity = 'municipality';
+      
+      indicators = await this.aggregateIndicators(muni.ibge_code, startDate, endDate, stateSourceId);
+      
+      if (indicators.length > 0) {
+         primarySourceId = stateSourceId;
+      } else {
+         primarySourceId = 'sinesp';
+         indicators = await this.aggregateIndicators(muni.ibge_code, startDate, endDate, primarySourceId);
+      }
       
       // 2. Fetch Source Metadata and Quality
       const sourceMeta = await this.getSourceMetadata(primarySourceId);
@@ -128,19 +150,12 @@ const { radiusMeters, periodMonths = 12, periodString = "12m" } = req;
       }
       
       // Determine Granularity
-      const granularity = 'municipality';
-      let indicators: IndicatorValue[] = [];
-    let exactOccurrences: any[] = [];
-      let coverageScore = 0;
-          
+      let coverageScore = 0.6;
       if (granularity === 'coordinate') {
-        indicators = await this.aggregateOccurrences(lat, lon, radiusMeters, startDate, endDate, primarySourceId);
-        exactOccurrences = await this.fetchExactOccurrences(lat, lon, radiusMeters, startDate, endDate, primarySourceId);
-        
+        // Not implemented fully for coordinate yet, keeping fallback logic
         coverageScore = 0.95;
       } else {
-        indicators = await this.aggregateIndicators(muni.ibge_code, startDate, endDate, primarySourceId);
-        
+        // indicators already fetched above!
         coverageScore = 0.6;
       }
       

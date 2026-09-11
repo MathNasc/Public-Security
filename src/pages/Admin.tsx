@@ -392,14 +392,7 @@ export function Admin() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
           <h1 className="text-3xl font-bold tracking-tight text-white">Admin / Data Ingestion</h1>
           <div className="flex flex-col sm:flex-row gap-2">
-            <button 
-              onClick={() => triggerEngine('SINESP', '/api/admin/ingestion/discovery')}
-              disabled={isUploading}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-900 border border-emerald-700 text-slate-100 font-semibold rounded-lg text-sm transition-colors w-full sm:w-auto text-center flex items-center justify-center gap-2"
-            >
-              <Database className="w-4 h-4" />
-              {isUploading ? "Processando..." : "Executar Discovery SINESP (Nacional)"}
-            </button>
+
             <button 
               onClick={triggerCrawler}
               disabled={isUploading}
