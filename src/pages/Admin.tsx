@@ -352,47 +352,116 @@ export function Admin() {
         
         {activeTab === 'automation' && <AutomationTab />}
         {activeTab === 'ingestion' && (
-
-          <div className="bg-slate-900/50 rounded-2xl border border-slate-800 overflow-hidden">
-            <div className="px-6 py-5 border-b border-slate-800 bg-slate-800/30 flex items-center gap-3">
-              <Server className="w-5 h-5 text-amber-500" />
-              <h2 className="font-semibold text-slate-200">Fontes de Dados Conectadas</h2>
+          <div className="space-y-6">
+            <div className="bg-slate-900/50 rounded-2xl border border-slate-800 overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-800 bg-slate-800/30 flex items-center gap-3">
+                <Database className="w-5 h-5 text-amber-500" />
+                <h2 className="font-semibold text-slate-200">Arquitetura de Ingestão de Dados - Vizinhança</h2>
+              </div>
+              <div className="p-6 overflow-x-auto text-xs sm:text-sm font-mono text-slate-400 bg-black/40">
+                <pre>{`                    VIZINHANÇA
+                        │
+            ┌───────────┴───────────┐
+            │                       │
+       SINESP/MJSP             Fontes estaduais
+    (Backbone nacional)             │
+                              ┌──────┼──────┐
+                              │      │      │
+                             SP     RJ     MG
+                              │      │      │
+                             ES     RS     ...
+                              │
+                        Adapters independentes
+                              │
+                 ┌────────────┴────────────┐
+                 │                         │
+             CSV/ZIP/API              XLS/XLSX
+                 │                         │
+                 └────────────┬────────────┘
+                              ↓
+                         RAW STORAGE
+                              ↓
+                        NORMALIZAÇÃO
+                              ↓
+                        DEDUPLICAÇÃO
+                              ↓
+                      POSTGRES/POSTGIS
+                              ↓
+                        INDICADORES
+                              ↓
+                       SAFETY SCORE`}</pre>
+              </div>
             </div>
-            
-            <div className="divide-y divide-slate-800/50">
-              {(Array.isArray(sources) ? sources : []).map(source => (
-                <div key={source.id} className="px-6 py-5 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-slate-200">{source.name}</h3>
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
-                        {source.status === "active" ? "Ativo" : source.status}
-                      </span>
-                    </div>
-                    <p className="text-sm text-slate-400">{source.description}</p>
-                    <div className="flex items-center gap-4 text-xs text-slate-500 pt-2 flex-wrap">
-                      <span className="flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-amber-500" /> {source.coverage}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Database className="w-3 h-3 text-slate-400" /> Registros: {source.recordsImported?.toLocaleString('pt-BR') || 0}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-slate-400" /> Atualizado: {new Date(source.updatedAt).toLocaleDateString('pt-BR')}
-                      </span>
+
+            {/* Backbone Nacional */}
+            <div className="bg-slate-900/50 rounded-2xl border border-slate-800 overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-800 bg-slate-800/30 flex items-center gap-3">
+                <Server className="w-5 h-5 text-emerald-500" />
+                <h2 className="font-semibold text-slate-200">Backbone Nacional (SINESP / MJSP)</h2>
+              </div>
+              
+              <div className="divide-y divide-slate-800/50">
+                {Array.isArray(sources) && sources.filter(s => s.coverage === 'Nacional').map(source => (
+                  <div key={source.id} className="px-6 py-5 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-slate-200">{source.name}</h3>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${source.status === 'Ativo' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-500/20 text-slate-400 border-slate-500/30'}`}>
+                          {source.status === "active" ? "Ativo" : source.status}
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-400">{source.description || source.provider}</p>
+                      <div className="flex items-center gap-4 text-xs text-slate-500 pt-2 flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-emerald-500" /> {source.coverage}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Database className="w-3 h-3 text-slate-400" /> Registros: {source.recordsImported?.toLocaleString('pt-BR') || 0}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-slate-400" /> Atualizado: {new Date(source.updatedAt).toLocaleDateString('pt-BR')}
+                        </span>
+                      </div>
                     </div>
                   </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Adapters Estaduais */}
+            <div className="bg-slate-900/50 rounded-2xl border border-slate-800 overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-800 bg-slate-800/30 flex items-center gap-3">
+                <Database className="w-5 h-5 text-amber-500" />
+                <h2 className="font-semibold text-slate-200">Adapters Estaduais (Descentralizados)</h2>
+              </div>
+              
+              <div className="divide-y divide-slate-800/50">
+                {Array.isArray(sources) && sources.filter(s => s.coverage !== 'Nacional').map(source => {
+                  let statusColor = "bg-slate-500/20 text-slate-400 border-slate-500/30";
+                  if (source.status === 'Ativo') statusColor = "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
+                  if (source.status === 'Em Análise') statusColor = "bg-amber-500/20 text-amber-400 border-amber-500/30";
+                  if (source.status === 'Pendente') statusColor = "bg-orange-500/20 text-orange-400 border-orange-500/30";
                   
-                  <a href={source.url} target="_blank" rel="noreferrer" className="text-sm font-medium text-amber-500 hover:text-amber-400 hover:underline">
-                    Ver origem
-                  </a>
-                </div>
-              ))}
-              {(!Array.isArray(sources) || sources.length === 0) && (
-                <div className="px-6 py-12 text-center text-slate-500">
-                  Nenhuma fonte de dados configurada.
-                </div>
-              )}
+                  return (
+                    <div key={source.id} className="px-6 py-4 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center hover:bg-slate-800/30 transition-colors">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-slate-200">{source.name}</h3>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${statusColor}`}>
+                            {source.status}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-400">{source.provider}</p>
+                      </div>
+                      <div className="flex items-center gap-4 text-xs text-slate-500">
+                        <span className="flex items-center gap-1 font-mono font-medium text-slate-300">
+                          <MapPin className="w-3 h-3 text-amber-500" /> {source.coverage}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
