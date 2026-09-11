@@ -20,7 +20,7 @@ export class AutoDownloader {
         } else {
            await db.update(dataSources).set({ status: 'PARTIAL', errorMessage: `HTTP ${res.status}`, lastAttempt: new Date() }).where(eq(dataSources.id, source.id));
         }
-      } catch (e) {
+      } catch (e: any) {
         // Marca como falha real se o link estiver quebrado/404
         await db.update(dataSources).set({ status: 'FAILED', errorMessage: e.message || 'Link quebrado', lastAttempt: new Date() }).where(eq(dataSources.id, source.id));
       }

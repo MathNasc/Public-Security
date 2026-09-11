@@ -447,7 +447,7 @@ app.post("/api/admin/automation/trigger-all", adminAuth, async (req, res) => {
     res.json({ success: true, message: `${jobs} fontes verificadas com sucesso! Status dos Links Oficiais atualizados.` });
   } catch (err: any) {
     console.error("Erro na automação:", err);
-    res.status(500).json({ error: "Falha ao acionar a automação" });
+    res.status(500).json({ error: "Falha: " + (err.message || String(err)) + " | Detalhes: Verifique o console do container" });
   }
 });
 
