@@ -27,7 +27,7 @@ COPY package*.json ./
 RUN rm -f package-lock.json && npm install --omit=dev
 
 # Install drizzle-kit globally (for running db:push in production if needed)
-RUN rm -f package-lock.json && npm install -g drizzle-kit
+RUN rm -f package-lock.json && npm install drizzle-kit
 
 # Copy built artifacts and necessary files
 COPY --from=builder /app/dist ./dist

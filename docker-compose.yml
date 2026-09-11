@@ -18,7 +18,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     command: >
-      sh -c "drizzle-kit push && npm run start"
+      sh -c "npx drizzle-kit push && npm run start"
     networks:
       - vizinhanca_net
 
