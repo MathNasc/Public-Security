@@ -1,6 +1,6 @@
 import React from 'react';
 import { useEffect, useState, useRef } from "react";
-import { ShieldAlert, Activity, ShieldCheck, Clock, Server, UploadCloud, Database, MapPin } from "lucide-react";
+import { ShieldAlert, Activity, ShieldCheck, Clock, Server, UploadCloud, Database, MapPin, AlertTriangle } from "lucide-react";
 
 function DataQualityTab() {
   const [stats, setStats] = useState<any>(null);
@@ -419,7 +419,7 @@ export function Admin() {
                           <Database className="w-3 h-3 text-slate-400" /> Registros: {source.recordsImported?.toLocaleString('pt-BR') || 0}
                         </span>
                         <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-slate-400" /> Atualizado: {new Date(source.updatedAt).toLocaleDateString('pt-BR')}
+                          <Clock className="w-3 h-3 text-slate-400" /> Atualizado: {source.updatedAt ? new Date(source.updatedAt).toLocaleDateString('pt-BR') : 'N/A'}
                         </span>
                       </div>
                     </div>
