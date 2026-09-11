@@ -347,7 +347,7 @@ app.get("/api/data-sources", async (req, res) => {
   try {
     let sources = await db.select().from(dataSources);
     // Force wipe if they don't have URLs to re-seed
-    if (sources.length > 0 && !sources[0].url) {
+    if (sources.length > 0 && (!sources[0].url || !sources[0].provider || !sources[0].coverage)) {
        await db.delete(dataSources);
        sources = [];
     }
@@ -356,11 +356,11 @@ app.get("/api/data-sources", async (req, res) => {
     if (sources.length === 0) {
       const ufs = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
       const seedData = [
-        { id: "ssp-sp", name: "Dados Abertos SP (SSP-SP)", sourceType: "api", url: "https://www.dadosabertos.sp.gov.br", officialUrl: "https://www.dadosabertos.sp.gov.br", description: "Secretaria de Segurança Pública de São Paulo", state: "SP" },
-        { id: "isp-rj", name: "ISP Dados RJ", sourceType: "api", url: "https://www.ispdados.rj.gov.br", officialUrl: "https://www.ispdados.rj.gov.br", description: "Instituto de Segurança Pública do Rio de Janeiro", state: "RJ" },
-        { id: "ssp-rs", name: "Observatório SSP-RS", sourceType: "html", url: "https://ssp.rs.gov.br/indicadores-criminais", officialUrl: "https://ssp.rs.gov.br/indicadores-criminais", description: "Secretaria de Segurança Pública do Rio Grande do Sul", state: "RS" },
-        { id: "sesp-es", name: "Observatório SESP-ES", sourceType: "html", url: "https://sesp.es.gov.br/Estatistica", officialUrl: "https://sesp.es.gov.br/Estatistica", description: "Secretaria de Estado da Segurança Pública do Espírito Santo", state: "ES" },
-        { id: "sinesp", name: "SINESP (Nacional)", sourceType: "api", url: "https://www.gov.br/mj/pt-br/assuntos/sua-seguranca/seguranca-publica/sinesp-1/dados-abertos", officialUrl: "https://www.gov.br/mj/pt-br/assuntos/sua-seguranca/seguranca-publica/sinesp-1/dados-abertos", description: "Sistema Nacional de Informações de Segurança Pública", state: "BR" }
+        { id: "ssp-sp", name: "Dados Abertos SP (SSP-SP)", provider: "SSP-SP", coverage: "SP", sourceType: "api", url: "https://www.dadosabertos.sp.gov.br", officialUrl: "https://www.dadosabertos.sp.gov.br", description: "Secretaria de Segurança Pública de São Paulo", state: "SP" },
+        { id: "isp-rj", name: "ISP Dados RJ", provider: "ISP-RJ", coverage: "RJ", sourceType: "api", url: "https://www.ispdados.rj.gov.br", officialUrl: "https://www.ispdados.rj.gov.br", description: "Instituto de Segurança Pública do Rio de Janeiro", state: "RJ" },
+        { id: "ssp-rs", name: "Observatório SSP-RS", provider: "SSP-RS", coverage: "RS", sourceType: "html", url: "https://ssp.rs.gov.br/indicadores-criminais", officialUrl: "https://ssp.rs.gov.br/indicadores-criminais", description: "Secretaria de Segurança Pública do Rio Grande do Sul", state: "RS" },
+        { id: "sesp-es", name: "Observatório SESP-ES", provider: "SESP-ES", coverage: "ES", sourceType: "html", url: "https://sesp.es.gov.br/Estatistica", officialUrl: "https://sesp.es.gov.br/Estatistica", description: "Secretaria de Estado da Segurança Pública do Espírito Santo", state: "ES" },
+        { id: "sinesp", name: "SINESP (Nacional)", provider: "Ministério da Justiça", coverage: "Nacional", sourceType: "api", url: "https://www.gov.br/mj/pt-br/assuntos/sua-seguranca/seguranca-publica/sinesp-1/dados-abertos", officialUrl: "https://www.gov.br/mj/pt-br/assuntos/sua-seguranca/seguranca-publica/sinesp-1/dados-abertos", description: "Sistema Nacional de Informações de Segurança Pública", state: "BR" }
       ];
       
       await db.insert(dataSources).values(seedData.map(s => ({
