@@ -356,16 +356,12 @@ app.get("/api/data-sources", async (req, res) => {
     if (sources.length === 0) {
       const ufs = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
       const seedData = [
-        { id: 'SINESP', name: 'SINESP Base Nacional', provider: 'Ministério da Justiça', coverage: 'Nacional', status: 'PENDING', url: 'https://dados.mj.gov.br/dataset/sinesp-2026.csv' },
-        { id: 'SSP-SP', name: 'Estatísticas Criminais', provider: 'Secretaria de Segurança Pública SP', coverage: 'SP', status: 'PENDING', url: 'https://www.ssp.sp.gov.br/estatisticas/mensal_2026.csv' },
-        { id: 'ISP-RJ', name: 'BaseDP Mensal', provider: 'Instituto de Segurança Pública RJ', coverage: 'RJ', status: 'PENDING', url: 'https://www.isp.rj.gov.br/estatisticas/2026.csv' },
-        { id: 'SSP-MG', name: 'Ocorrências Criminais', provider: 'SEJUSP MG', coverage: 'MG', status: 'PENDING', url: 'http://dados.mg.gov.br/dataset/estatisticas-criminais-2026.csv' },
-        { id: 'SESP-PR', name: 'Estatísticas SESP', provider: 'Secretaria de Segurança Pública PR', coverage: 'PR', status: 'PENDING', url: 'https://www.seguranca.pr.gov.br/arquivos/File/Estatisticas/2026/estatisticas_criminais.csv' },
-        { id: 'SSP-RS', name: 'Indicadores Criminais', provider: 'Secretaria de Segurança Pública RS', coverage: 'RS', status: 'PENDING', url: 'https://ssp.rs.gov.br/upload/arquivos/indicadores_criminais_2026.csv' },
-        ...ufs.filter(uf => !['SP','RJ','MG','PR','RS'].includes(uf)).map(uf => ({
-          id: `SSP-${uf}`, name: `Indicadores Criminais ${uf}`, provider: `Secretaria de Segurança ${uf}`, coverage: uf, status: 'PENDING', url: `https://www.seguranca.${uf.toLowerCase()}.gov.br/dados/2026.csv`
-        }))
-      ];
+      { name: "Dados Abertos SP (SSP-SP)", type: "api", url: "https://www.dadosabertos.sp.gov.br", description: "Secretaria de Segurança Pública de São Paulo", stateId: states.find(s => s.uf === 'SP')?.id || 1, status: "active", updateFrequency: "monthly" },
+      { name: "ISP Dados RJ", type: "api", url: "https://www.ispdados.rj.gov.br", description: "Instituto de Segurança Pública do Rio de Janeiro", stateId: states.find(s => s.uf === 'RJ')?.id || 2, status: "active", updateFrequency: "monthly" },
+      { name: "Observatório SSP-RS", type: "html", url: "https://ssp.rs.gov.br/indicadores-criminais", description: "Secretaria de Segurança Pública do Rio Grande do Sul", stateId: states.find(s => s.uf === 'RS')?.id || 3, status: "active", updateFrequency: "monthly" },
+      { name: "Observatório SESP-ES", type: "html", url: "https://sesp.es.gov.br/Estatistica", description: "Secretaria de Estado da Segurança Pública do Espírito Santo", stateId: states.find(s => s.uf === 'ES')?.id || 4, status: "active", updateFrequency: "monthly" },
+      { name: "SINESP (Nacional)", type: "api", url: "https://www.gov.br/mj/pt-br/assuntos/sua-seguranca/seguranca-publica/sinesp-1/dados-abertos", description: "Sistema Nacional de Informações de Segurança Pública", status: "active", updateFrequency: "monthly" }
+    ];
       
       await db.insert(dataSources).values(seedData.map(s => ({
         ...s,
