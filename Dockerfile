@@ -7,7 +7,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install all dependencies (including devDependencies needed for build)
-RUN npm install
+RUN rm -f package-lock.json && npm install
 
 # Copy source code
 COPY . .
@@ -24,10 +24,10 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install only production dependencies
-RUN npm install --omit=dev
+RUN rm -f package-lock.json && npm install --omit=dev
 
 # Install drizzle-kit globally (for running db:push in production if needed)
-RUN npm install -g drizzle-kit
+RUN rm -f package-lock.json && npm install -g drizzle-kit
 
 # Copy built artifacts and necessary files
 COPY --from=builder /app/dist ./dist
