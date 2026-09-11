@@ -1,6 +1,6 @@
 import React from 'react';
 import { useEffect, useState, useRef } from "react";
-import { ShieldAlert, Activity, ShieldCheck, Clock, Server, UploadCloud, Database, MapPin, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
+import { X, CheckCircle2, ArrowUpRight, ShieldAlert, Activity, ShieldCheck, Clock, Server, UploadCloud, Database, MapPin, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 
 function DataQualityTab() {
   const [stats, setStats] = useState<any>(null);
@@ -118,7 +118,7 @@ function AutomationTab() {
           Orquestração e Automação (Fase 10)
         </h2>
         <button 
-          onClick={() => fetch("/api/admin/ingestion/discovery", { method: 'POST' }).then(() => alert('Discovery disparado!'))}
+          onClick={() => fetch("/api/admin/ingestion/discovery", { method: 'POST' }).then(() => showToast('Discovery disparado!', 'success'))}
           className="bg-slate-800 hover:bg-slate-700 text-amber-500 border border-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
         >
           Executar Discovery Nacional
@@ -218,13 +218,13 @@ export function Admin() {
       const data = await response.json();
       
       if (response.ok) {
-        alert(`Sucesso! ${data.inserted} registros importados do arquivo ${file.name}.`);
+        showToast(`Sucesso! ${data.inserted} registros importados do arquivo ${file.name}.`, 'success');
         fetchSources();
       } else {
-        alert(`Erro na importação: ${data.error || 'Desconhecido'}`);
+        showToast(`Erro na importação: ${data.error || 'Desconhecido'}`, 'error');
       }
     } catch (err: any) {
-      alert("Falha ao enviar arquivo.");
+      showToast('Falha ao enviar arquivo.', 'error');
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -238,13 +238,13 @@ export function Admin() {
       const res = await fetch(endpoint, { method: 'POST' });
       const data = await res.json();
       if (res.ok) {
-        alert(data.message);
+        showToast(data.message, 'success');
         fetchSources(); // Refresh UI after trigger
       } else {
-        alert('Erro: ' + data.error);
+        showToast('Erro: ' + data.error, 'error');
       }
     } catch (e) {
-      alert('Falha de rede.');
+      showToast('Falha de rede.', 'error');
     } finally {
       setIsUploading(false);
     }
@@ -258,13 +258,13 @@ export function Admin() {
       const data = await response.json();
       
       if (response.ok) {
-        alert(data.message || "Automação iniciada com sucesso!");
+        showToast(data.message || 'Automação iniciada com sucesso!', 'success');
         fetchSources();
       } else {
-        alert(`Erro na importação: ${data.error || 'Desconhecido'}`);
+        showToast(`Erro na importação: ${data.error || 'Desconhecido'}`, 'error');
       }
     } catch (err) {
-      alert(`Falha ao baixar amostra: ${err.message || err}`);
+      showToast(`Falha na automação: ${err.message || err}`, 'error');
     } finally {
       setIsUploading(false);
     }
