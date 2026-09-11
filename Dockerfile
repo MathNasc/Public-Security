@@ -14,6 +14,7 @@ COPY . .
 
 # Build the application
 RUN npm run build
+RUN npx drizzle-kit generate
 
 # Production stage
 FROM node:20-alpine
