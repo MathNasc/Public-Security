@@ -441,13 +441,23 @@ app.post("/api/admin/upload-ssp", adminAuth, upload.single("file"), async (req, 
 });
 
 
+app.post("/api/admin/force-db-sync", adminAuth, (req, res) => {
+  const { exec } = require('child_process');
+  exec("npx drizzle-kit push", { env: process.env }, (error, stdout, stderr) => {
+    if (error) {
+      return res.status(500).json({ error: error.message, stdout, stderr });
+    }
+    res.json({ success: true, stdout, stderr });
+  });
+});
+
 app.post("/api/admin/automation/trigger-all", adminAuth, async (req, res) => {
   try {
     const jobs = await AutoDownloader.triggerAll();
     res.json({ success: true, message: `${jobs} fontes verificadas com sucesso! Status dos Links Oficiais atualizados.` });
   } catch (err: any) {
     console.error("Erro na automação:", err);
-    res.status(500).json({ error: "Falha: " + (err.message || String(err)) + " | Detalhes: Verifique o console do container" });
+    const rootCause = err.cause ? (err.cause.message || err.cause) : err.message; res.status(500).json({ error: "Falha: " + rootCause });
   }
 });
 
