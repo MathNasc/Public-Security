@@ -231,13 +231,14 @@ export function Admin() {
   };
 
   
-  const triggerEngine = async (engineName, endpoint) => {
+  const triggerEngine = async (engineName: string, endpoint: string) => {
     setIsUploading(true);
     try {
       const res = await fetch(endpoint, { method: 'POST' });
       const data = await res.json();
       if (res.ok) {
         alert(data.message);
+        fetchSources(); // Refresh UI after trigger
       } else {
         alert('Erro: ' + data.error);
       }
@@ -310,6 +311,20 @@ export function Admin() {
                 Upload Manual (CSV)
               </button>
             </div>
+          </div>
+        </div>
+
+        <div className="mb-8 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-3">
+          <div className="p-2 bg-amber-500/20 rounded-full mt-0.5">
+            <AlertTriangle className="w-5 h-5 text-amber-500" />
+          </div>
+          <div>
+            <h3 className="text-amber-500 font-semibold text-lg">Modo de Demonstração (Dados Simulados)</h3>
+            <p className="text-amber-500/80 text-sm mt-1">
+              Os servidores oficiais do Governo Federal (dados.mj.gov.br) encontram-se temporariamente fora do ar ou com links quebrados. 
+              Para garantir o funcionamento da plataforma, injetamos uma base de dados realista (fictícia) contemplando estatísticas nacionais e milhares de ocorrências espalhadas por CEPs de todo o Brasil. 
+              Assim que o portal oficial retornar, você poderá fazer o Upload Manual do CSV original.
+            </p>
           </div>
         </div>
         
