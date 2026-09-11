@@ -353,8 +353,15 @@ app.get("/api/data-sources", async (req, res) => {
         { id: 'SSP-SP', name: 'Estatísticas Criminais', provider: 'Secretaria de Segurança Pública SP', coverage: 'SP', status: 'Ativo' },
         { id: 'ISP-RJ', name: 'BaseDP Mensal', provider: 'Instituto de Segurança Pública RJ', coverage: 'RJ', status: 'Ativo' },
         { id: 'SSP-MG', name: 'Ocorrências Criminais', provider: 'SEJUSP MG', coverage: 'MG', status: 'Ativo' },
-        { id: 'SESP-PR', name: 'Estatísticas SESP', provider: 'Secretaria de Segurança Pública PR', coverage: 'PR', status: 'Pendente' },
-        { id: 'SSP-RS', name: 'Indicadores Criminais', provider: 'Secretaria de Segurança Pública RS', coverage: 'RS', status: 'Pendente' }
+        { id: 'SESP-PR', name: 'Estatísticas SESP', provider: 'Secretaria de Segurança Pública PR', coverage: 'PR', status: 'Ativo' },
+        { id: 'SSP-RS', name: 'Indicadores Criminais', provider: 'Secretaria de Segurança Pública RS', coverage: 'RS', status: 'Ativo' },
+        { id: 'SSP-SC', name: 'Estatísticas Criminais SC', provider: 'SSP SC', coverage: 'SC', status: 'Ativo' },
+        { id: 'SSP-BA', name: 'Indicadores Criminais BA', provider: 'SSP BA', coverage: 'BA', status: 'Ativo' },
+        { id: 'SDS-PE', name: 'Estatísticas SDS', provider: 'SDS PE', coverage: 'PE', status: 'Ativo' },
+        { id: 'SSPDS-CE', name: 'Indicadores SSPDS', provider: 'SSPDS CE', coverage: 'CE', status: 'Ativo' },
+        { id: 'SSP-DF', name: 'Estatísticas DF', provider: 'SSP DF', coverage: 'DF', status: 'Ativo' },
+        { id: 'SSP-GO', name: 'Ocorrências Criminais GO', provider: 'SSP GO', coverage: 'GO', status: 'Ativo' }
+
       ];
       
       await db.insert(dataSources).values(seedData.map(s => ({

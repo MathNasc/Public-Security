@@ -7,12 +7,21 @@ import { SspSpAdapter } from '../adapters/ssp/SspSpAdapter.js';
 import { IspRjAdapter } from '../adapters/isp-rj/IspRjAdapter.js';
 import { SspMgAdapter } from '../adapters/ssp-mg/SspMgAdapter.js';
 import { SespPrAdapter } from '../adapters/sesp-pr/SespPrAdapter.js';
+import { SspRsAdapter } from '../adapters/ssp-rs/SspRsAdapter.js';
+import { SspScAdapter } from '../adapters/ssp-sc/SspScAdapter.js';
+import { SspBaAdapter } from '../adapters/ssp-ba/SspBaAdapter.js';
+import { SdsPeAdapter } from '../adapters/sds-pe/SdsPeAdapter.js';
+import { SspdsCeAdapter } from '../adapters/sspds-ce/SspdsCeAdapter.js';
+import { SspDfAdapter } from '../adapters/ssp-df/SspDfAdapter.js';
+import { SspGoAdapter } from '../adapters/ssp-go/SspGoAdapter.js';
 import { SinespAdapter } from '../adapters/sinesp/SinespAdapter.js';
 import { IspRjAdapter } from '../adapters/isp-rj/IspRjAdapter.js';
 import { SspMgAdapter } from '../adapters/ssp-mg/SspMgAdapter.js';
 import { SespPrAdapter } from '../adapters/sesp-pr/SespPrAdapter.js';
+import { SspRsAdapter } from '../adapters/ssp-rs/SspRsAdapter.js';
 import { SspMgAdapter } from '../adapters/ssp-mg/SspMgAdapter.js';
 import { SespPrAdapter } from '../adapters/sesp-pr/SespPrAdapter.js';
+import { SspRsAdapter } from '../adapters/ssp-rs/SspRsAdapter.js';
 import { randomUUID } from 'crypto';
 
 const MAX_ATTEMPTS = 3;
@@ -121,6 +130,13 @@ export class IngestionWorker {
       else if (job.source_id === 'ISP-RJ') adapter = new IspRjAdapter();
       else if (job.source_id === 'SSP-MG') adapter = new SspMgAdapter();
       else if (job.source_id === 'SESP-PR') adapter = new SespPrAdapter();
+      else if (job.source_id === 'SSP-RS') adapter = new SspRsAdapter();
+      else if (job.source_id === 'SSP-SC') adapter = new SspScAdapter();
+      else if (job.source_id === 'SSP-BA') adapter = new SspBaAdapter();
+      else if (job.source_id === 'SDS-PE') adapter = new SdsPeAdapter();
+      else if (job.source_id === 'SSPDS-CE') adapter = new SspdsCeAdapter();
+      else if (job.source_id === 'SSP-DF') adapter = new SspDfAdapter();
+      else if (job.source_id === 'SSP-GO') adapter = new SspGoAdapter();
       else throw new Error("Unknown adapter for source: " + job.source_id);
 
       for await (const row of parser) {
