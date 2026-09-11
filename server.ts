@@ -443,7 +443,7 @@ app.post("/api/admin/upload-ssp", adminAuth, upload.single("file"), async (req, 
 
 app.post("/api/admin/force-db-sync", adminAuth, (req, res) => {
   const { exec } = require('child_process');
-  exec("npx drizzle-kit push", { env: process.env }, (error, stdout, stderr) => {
+  exec("npx drizzle-kit push --force --accept-data-loss", { env: process.env }, (error, stdout, stderr) => {
     if (error) {
       return res.status(500).json({ error: error.message, stdout, stderr });
     }
