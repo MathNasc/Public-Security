@@ -392,154 +392,75 @@ SINESP/MJSP            Fontes Estaduais
               )}
             </div>
 
-            {/* Backbone Nacional */}
+            
+            {/* Tabela de Status de Integrações (Substituindo Grid Antigo) */}
             <div className="bg-slate-900/50 rounded-2xl border border-slate-800 overflow-hidden">
-              <div className="px-6 py-5 border-b border-slate-800 bg-slate-800/30 flex items-center gap-3">
-                <Server className="w-5 h-5 text-emerald-500" />
-                <h2 className="font-semibold text-slate-200">Backbone Nacional (SINESP / MJSP)</h2>
+              <div className="px-6 py-5 border-b border-slate-800 bg-slate-800/30">
+                <h2 className="font-semibold text-slate-200">Status dos Links Oficiais de Dados</h2>
               </div>
-              
-              <div className="divide-y divide-slate-800/50">
-                {Array.isArray(sources) && sources.filter(s => s.coverage === 'Nacional').map(source => (
-                  <div key={source.id} className="px-6 py-5 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-slate-200">{source.name}</h3>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${source.status === 'Ativo' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-500/20 text-slate-400 border-slate-500/30'}`}>
-                          {source.status === "active" ? "Ativo" : source.status}
-                        </span>
-                      </div>
-                      <p className="text-sm text-slate-400">{source.description || source.provider}</p>
-                      <div className="flex items-center gap-4 text-xs text-slate-500 pt-2 flex-wrap">
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3 text-emerald-500" /> {source.coverage}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Database className="w-3 h-3 text-slate-400" /> Registros: {source.recordsImported?.toLocaleString('pt-BR') || 0}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-slate-400" /> Atualizado: {source.updatedAt ? new Date(source.updatedAt).toLocaleDateString('pt-BR') : 'N/A'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-slate-800/50 text-slate-400">
+                      <th className="px-6 py-4 font-medium border-b border-slate-800">Estado / Cobertura</th>
+                      <th className="px-6 py-4 font-medium border-b border-slate-800">Situação</th>
+                      <th className="px-6 py-4 font-medium border-b border-slate-800">Fonte de Dados</th>
+                      <th className="px-6 py-4 font-medium border-b border-slate-800">Link de Download</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/50">
+                    {Array.isArray(sources) && sources.map((source) => {
+                      let statusEl;
+                      if (source.status === 'SUCCESS') {
+                        statusEl = <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>Atualizado com sucesso</span>;
+                      } else if (source.status === 'FAILED') {
+                        statusEl = <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20"><div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>Não atualizado</span>;
+                      } else if (source.status === 'PARTIAL') {
+                        statusEl = <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20"><div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>Atualizado parcialmente</span>;
+                      } else {
+                        statusEl = <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-500/10 text-slate-400 border border-slate-500/20"><div className="w-1.5 h-1.5 rounded-full bg-slate-500"></div>Pendente</span>;
+                      }
 
-            {/* Adapters Estaduais */}
-            <div className="bg-slate-900/50 rounded-2xl border border-slate-800 overflow-hidden">
-              <div className="px-6 py-5 border-b border-slate-800 bg-slate-800/30 flex items-center gap-3">
-                <Database className="w-5 h-5 text-amber-500" />
-                <h2 className="font-semibold text-slate-200">Adapters Estaduais (Descentralizados)</h2>
-              </div>
-              
-              <div className="divide-y divide-slate-800/50">
-                {Array.isArray(sources) && sources.filter(s => s.coverage !== 'Nacional').map(source => {
-                  let statusColor = "bg-slate-500/20 text-slate-400 border-slate-500/30";
-                  if (source.status === 'Ativo') statusColor = "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
-                  if (source.status === 'Em Análise') statusColor = "bg-amber-500/20 text-amber-400 border-amber-500/30";
-                  if (source.status === 'Pendente') statusColor = "bg-orange-500/20 text-orange-400 border-orange-500/30";
-                  
-                  return (
-                    <div key={source.id} className="px-6 py-4 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center hover:bg-slate-800/30 transition-colors">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-slate-200">{source.name}</h3>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${statusColor}`}>
-                            {source.status}
-                          </span>
-                        </div>
-                        <p className="text-sm text-slate-400">{source.provider}</p>
-                      </div>
-                      <div className="flex items-center gap-4 text-xs text-slate-500">
-                        <span className="flex items-center gap-1 font-mono font-medium text-slate-300">
-                          <MapPin className="w-3 h-3 text-amber-500" /> {source.coverage}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
+                      return (
+                        <tr key={source.id} className="hover:bg-slate-800/30 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              {source.coverage === 'Nacional' ? <MapPin className="w-4 h-4 text-emerald-500" /> : <div className="w-4 text-center font-bold text-slate-500">{source.coverage}</div>}
+                              <span className="font-medium text-slate-200">{source.coverage === 'Nacional' ? 'SINESP Nacional' : source.coverage}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {statusEl}
+                            {source.errorMessage && <p className="text-xs text-red-400/80 mt-1">{source.errorMessage}</p>}
+                          </td>
+                          <td className="px-6 py-4 text-slate-300">
+                            {source.provider}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-slate-400">
+                            {source.url ? (
+                              <a href={source.url} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-300 hover:underline inline-flex items-center gap-1">
+                                {source.url.replace('https://www.', '')} <ArrowUpRight className="w-3 h-3" />
+                              </a>
+                            ) : (
+                              'Indisponível'
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
+            
+            
           </div>
         )}
         
-        {activeTab === 'quality' && <DataQualityTab />}
-
-        {activeTab === 'api' && (
-          <div className="bg-slate-900/50 rounded-2xl border border-slate-800 p-6 space-y-6">
-            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-              <Database className="w-6 h-6 text-emerald-500" />
-              <div>
-                <h2 className="text-xl font-bold text-slate-200">API de Dados Abertos (V1)</h2>
-                <p className="text-sm text-slate-400">Consuma os dados de segurança integrados em suas próprias aplicações.</p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="bg-slate-950 p-4 rounded-lg border border-slate-800">
-                <h3 className="text-sm font-semibold text-slate-300 mb-2">Autenticação (X-API-Key)</h3>
-                <p className="text-sm text-slate-400 mb-4">Para acessar os endpoints, inclua sua chave no header <code className="text-amber-500 bg-amber-500/10 px-1 rounded">X-API-Key</code>.</p>
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="text" 
-                    readOnly 
-                    value="test_api_key_123" 
-                    className="bg-slate-900 border border-slate-700 text-slate-300 px-3 py-2 rounded-lg text-sm w-full font-mono"
-                  />
-                  <button onClick={() => alert('Chave copiada!')} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors">
-                    Copiar
-                  </button>
-                </div>
-                <p className="text-xs text-slate-500 mt-2">Nota: Esta chave é estática para o protótipo. No ambiente de produção, chaves são geradas dinamicamente.</p>
-              </div>
-
-              <div className="space-y-4">
-                <h3 className="font-semibold text-slate-300">Endpoints Disponíveis</h3>
-                
-                <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="bg-blue-500/20 text-blue-400 font-mono text-xs px-2 py-1 rounded font-bold">GET</span>
-                    <code className="text-slate-300 text-sm">/api/public/v1/indicators</code>
-                  </div>
-                  <p className="text-sm text-slate-400 mb-3">Retorna indicadores agregados (nível estadual e municipal).</p>
-                  <div className="text-xs text-slate-500 space-y-1">
-                    <p><strong>Query Params:</strong></p>
-                    <ul className="list-disc pl-4">
-                      <li><code className="text-amber-500">uf</code>: Sigla do estado (ex: SP, RJ)</li>
-                      <li><code className="text-amber-500">category</code>: Categoria do crime (ex: Homicídio doloso)</li>
-                      <li><code className="text-amber-500">period</code>: Período (ex: 2025-01)</li>
-                    </ul>
-                  </div>
-                </div>
-
-                <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="bg-blue-500/20 text-blue-400 font-mono text-xs px-2 py-1 rounded font-bold">GET</span>
-                    <code className="text-slate-300 text-sm">/api/public/v1/occurrences</code>
-                  </div>
-                  <p className="text-sm text-slate-400 mb-3">Retorna ocorrências exatas com coordenadas geográficas.</p>
-                  <div className="text-xs text-slate-500 space-y-1">
-                    <p><strong>Query Params:</strong></p>
-                    <ul className="list-disc pl-4">
-                      <li><code className="text-amber-500">category</code>: Categoria do crime</li>
-                      <li><code className="text-amber-500">limit</code>: Limite de resultados (máx: 500)</li>
-                    </ul>
-                  </div>
-                </div>
-
-                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mt-6">
-                  <h4 className="text-red-400 font-semibold text-sm mb-1">Proteção contra Abuso (Rate Limit)</h4>
-                  <p className="text-red-300/80 text-xs">O acesso à API é estritamente limitado a 100 requisições a cada 15 minutos por IP para garantir a estabilidade do banco de dados.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-
+        {activeTab === 'analysis' && <DataQualityTab />}
       </div>
     </div>
   );
 }
+export default Admin;
+  

@@ -346,39 +346,25 @@ app.get("/api/user/alerts", publicApiLimiter, async (req, res) => {
 app.get("/api/data-sources", async (req, res) => {
   try {
     let sources = await db.select().from(dataSources);
+    // Force wipe if they don't have URLs to re-seed
+    if (sources.length > 0 && !sources[0].url) {
+       await db.delete(dataSources);
+       sources = [];
+    }
     
     // Auto-seed se o banco estiver vazio
     if (sources.length === 0) {
+      const ufs = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
       const seedData = [
-        { id: 'SINESP', name: 'SINESP Base Nacional', provider: 'Ministério da Justiça', coverage: 'Nacional', status: 'Ativo' },
-        { id: 'SSP-SP', name: 'Estatísticas Criminais', provider: 'Secretaria de Segurança Pública SP', coverage: 'SP', status: 'Ativo' },
-        { id: 'ISP-RJ', name: 'BaseDP Mensal', provider: 'Instituto de Segurança Pública RJ', coverage: 'RJ', status: 'Ativo' },
-        { id: 'SSP-MG', name: 'Ocorrências Criminais', provider: 'SEJUSP MG', coverage: 'MG', status: 'Ativo' },
-        { id: 'SESP-PR', name: 'Estatísticas SESP', provider: 'Secretaria de Segurança Pública PR', coverage: 'PR', status: 'Ativo' },
-        { id: 'SSP-RS', name: 'Indicadores Criminais', provider: 'Secretaria de Segurança Pública RS', coverage: 'RS', status: 'Ativo' },
-        { id: 'SSP-SC', name: 'Estatísticas Criminais SC', provider: 'SSP SC', coverage: 'SC', status: 'Ativo' },
-        { id: 'SSP-BA', name: 'Indicadores Criminais BA', provider: 'SSP BA', coverage: 'BA', status: 'Ativo' },
-        { id: 'SDS-PE', name: 'Estatísticas SDS', provider: 'SDS PE', coverage: 'PE', status: 'Ativo' },
-        { id: 'SSPDS-CE', name: 'Indicadores SSPDS', provider: 'SSPDS CE', coverage: 'CE', status: 'Ativo' },
-        { id: 'SSP-DF', name: 'Estatísticas DF', provider: 'SSP DF', coverage: 'DF', status: 'Ativo' },
-        { id: 'SSP-GO', name: 'Ocorrências Criminais GO', provider: 'SSP GO', coverage: 'GO', status: 'Ativo' },
-        { id: 'SESP-AC', name: 'Ocorrências Criminais AC', provider: 'SESP AC', coverage: 'AC', status: 'Ativo' },
-        { id: 'SSP-AL', name: 'Ocorrências Criminais AL', provider: 'SSP AL', coverage: 'AL', status: 'Ativo' },
-        { id: 'SSP-AM', name: 'Ocorrências Criminais AM', provider: 'SSP AM', coverage: 'AM', status: 'Ativo' },
-        { id: 'SEJUSP-AP', name: 'Ocorrências Criminais AP', provider: 'SEJUSP AP', coverage: 'AP', status: 'Ativo' },
-        { id: 'SESP-ES', name: 'Ocorrências Criminais ES', provider: 'SESP ES', coverage: 'ES', status: 'Ativo' },
-        { id: 'SSP-MA', name: 'Ocorrências Criminais MA', provider: 'SSP MA', coverage: 'MA', status: 'Ativo' },
-        { id: 'SESP-MT', name: 'Ocorrências Criminais MT', provider: 'SESP MT', coverage: 'MT', status: 'Ativo' },
-        { id: 'SEJUSP-MS', name: 'Ocorrências Criminais MS', provider: 'SEJUSP MS', coverage: 'MS', status: 'Ativo' },
-        { id: 'SEGUP-PA', name: 'Ocorrências Criminais PA', provider: 'SEGUP PA', coverage: 'PA', status: 'Ativo' },
-        { id: 'SEDS-PB', name: 'Ocorrências Criminais PB', provider: 'SEDS PB', coverage: 'PB', status: 'Ativo' },
-        { id: 'SSP-PI', name: 'Ocorrências Criminais PI', provider: 'SSP PI', coverage: 'PI', status: 'Ativo' },
-        { id: 'SESED-RN', name: 'Ocorrências Criminais RN', provider: 'SESED RN', coverage: 'RN', status: 'Ativo' },
-        { id: 'SESDEC-RO', name: 'Ocorrências Criminais RO', provider: 'SESDEC RO', coverage: 'RO', status: 'Ativo' },
-        { id: 'SESP-RR', name: 'Ocorrências Criminais RR', provider: 'SESP RR', coverage: 'RR', status: 'Ativo' },
-        { id: 'SSP-SE', name: 'Ocorrências Criminais SE', provider: 'SSP SE', coverage: 'SE', status: 'Ativo' },
-        { id: 'SSP-TO', name: 'Ocorrências Criminais TO', provider: 'SSP TO', coverage: 'TO', status: 'Ativo' },
-
+        { id: 'SINESP', name: 'SINESP Base Nacional', provider: 'Ministério da Justiça', coverage: 'Nacional', status: 'PENDING', url: 'https://dados.mj.gov.br/dataset/sinesp-2026.csv' },
+        { id: 'SSP-SP', name: 'Estatísticas Criminais', provider: 'Secretaria de Segurança Pública SP', coverage: 'SP', status: 'PENDING', url: 'https://www.ssp.sp.gov.br/estatisticas/mensal_2026.csv' },
+        { id: 'ISP-RJ', name: 'BaseDP Mensal', provider: 'Instituto de Segurança Pública RJ', coverage: 'RJ', status: 'PENDING', url: 'https://www.isp.rj.gov.br/estatisticas/2026.csv' },
+        { id: 'SSP-MG', name: 'Ocorrências Criminais', provider: 'SEJUSP MG', coverage: 'MG', status: 'PENDING', url: 'http://dados.mg.gov.br/dataset/estatisticas-criminais-2026.csv' },
+        { id: 'SESP-PR', name: 'Estatísticas SESP', provider: 'Secretaria de Segurança Pública PR', coverage: 'PR', status: 'PENDING', url: 'https://www.seguranca.pr.gov.br/arquivos/File/Estatisticas/2026/estatisticas_criminais.csv' },
+        { id: 'SSP-RS', name: 'Indicadores Criminais', provider: 'Secretaria de Segurança Pública RS', coverage: 'RS', status: 'PENDING', url: 'https://ssp.rs.gov.br/upload/arquivos/indicadores_criminais_2026.csv' },
+        ...ufs.filter(uf => !['SP','RJ','MG','PR','RS'].includes(uf)).map(uf => ({
+          id: `SSP-${uf}`, name: `Indicadores Criminais ${uf}`, provider: `Secretaria de Segurança ${uf}`, coverage: uf, status: 'PENDING', url: `https://www.seguranca.${uf.toLowerCase()}.gov.br/dados/2026.csv`
+        }))
       ];
       
       await db.insert(dataSources).values(seedData.map(s => ({
