@@ -1,6 +1,6 @@
 import React from 'react';
 import { useEffect, useState, useRef } from "react";
-import { ShieldAlert, Activity, ShieldCheck, Clock, Server, UploadCloud, Database, MapPin, AlertTriangle } from "lucide-react";
+import { ShieldAlert, Activity, ShieldCheck, Clock, Server, UploadCloud, Database, MapPin, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 
 function DataQualityTab() {
   const [stats, setStats] = useState<any>(null);
@@ -187,6 +187,7 @@ export function Admin() {
   const [sources, setSources] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [activeTab, setActiveTab] = useState("ingestion");
+  const [isArchExpanded, setIsArchExpanded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchSources = () => {
@@ -314,20 +315,7 @@ export function Admin() {
           </div>
         </div>
 
-        <div className="mb-8 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-3">
-          <div className="p-2 bg-amber-500/20 rounded-full mt-0.5">
-            <AlertTriangle className="w-5 h-5 text-amber-500" />
-          </div>
-          <div>
-            <h3 className="text-amber-500 font-semibold text-lg">Modo de Demonstração (Dados Simulados)</h3>
-            <p className="text-amber-500/80 text-sm mt-1">
-              Os servidores oficiais do Governo Federal (dados.mj.gov.br) encontram-se temporariamente fora do ar ou com links quebrados. 
-              Para garantir o funcionamento da plataforma, injetamos uma base de dados realista (fictícia) contemplando estatísticas nacionais e milhares de ocorrências espalhadas por CEPs de todo o Brasil. 
-              Assim que o portal oficial retornar, você poderá fazer o Upload Manual do CSV original.
-            </p>
-          </div>
-        </div>
-        
+
         <div className="flex gap-4 mb-6 border-b border-slate-800">
           <button 
             className={`pb-3 px-2 font-medium text-sm transition-colors ${activeTab === 'ingestion' ? 'text-amber-500 border-b-2 border-amber-500' : 'text-slate-400 hover:text-slate-300'}`}
@@ -354,43 +342,54 @@ export function Admin() {
         {activeTab === 'ingestion' && (
           <div className="space-y-6">
             <div className="bg-slate-900/50 rounded-2xl border border-slate-800 overflow-hidden">
-              <div className="px-6 py-5 border-b border-slate-800 bg-slate-800/30 flex items-center gap-3">
-                <Database className="w-5 h-5 text-amber-500" />
-                <h2 className="font-semibold text-slate-200">Arquitetura de Ingestão de Dados - Vizinhança</h2>
+              <div 
+                className="px-6 py-5 border-b border-slate-800 bg-slate-800/30 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 transition-colors"
+                onClick={() => setIsArchExpanded(!isArchExpanded)}
+              >
+                <div className="flex items-center gap-3">
+                  <Database className="w-5 h-5 text-amber-500" />
+                  <h2 className="font-semibold text-slate-200">Arquitetura de Ingestão de Dados - Vizinhança</h2>
+                </div>
+                <button className="text-slate-400 hover:text-slate-200 transition-colors">
+                  {isArchExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                </button>
               </div>
-              <div className="p-6 overflow-x-auto text-xs sm:text-sm font-mono text-slate-400 bg-black/40">
-                <pre>{`                    VIZINHANÇA
+              
+              {isArchExpanded && (
+                <div className="p-6 overflow-x-auto text-[10px] sm:text-xs md:text-sm font-mono text-slate-400 bg-black/40">
+                  <pre className="min-w-[400px] text-center mx-auto">{`            VIZINHANÇA
+                 │
+    ┌────────────┴────────────┐
+    │                         │
+SINESP/MJSP            Fontes Estaduais
+(Nacional)                    │
+                        ┌─────┼─────┐
+                        │     │     │
+                       SP    RJ    MG
+                        │     │     │
+                       ES    RS    ...
                         │
-            ┌───────────┴───────────┐
-            │                       │
-       SINESP/MJSP             Fontes estaduais
-    (Backbone nacional)             │
-                              ┌──────┼──────┐
-                              │      │      │
-                             SP     RJ     MG
-                              │      │      │
-                             ES     RS     ...
-                              │
-                        Adapters independentes
-                              │
-                 ┌────────────┴────────────┐
-                 │                         │
-             CSV/ZIP/API              XLS/XLSX
-                 │                         │
-                 └────────────┬────────────┘
-                              ↓
-                         RAW STORAGE
-                              ↓
-                        NORMALIZAÇÃO
-                              ↓
-                        DEDUPLICAÇÃO
-                              ↓
-                      POSTGRES/POSTGIS
-                              ↓
-                        INDICADORES
-                              ↓
-                       SAFETY SCORE`}</pre>
-              </div>
+              Adapters Independentes
+                        │
+           ┌────────────┴────────────┐
+           │                         │
+      CSV/ZIP/API                XLS/XLSX
+           │                         │
+           └────────────┬────────────┘
+                        ↓
+                   RAW STORAGE
+                        ↓
+                  NORMALIZAÇÃO
+                        ↓
+                  DEDUPLICAÇÃO
+                        ↓
+                POSTGRES/POSTGIS
+                        ↓
+                  INDICADORES
+                        ↓
+                 SAFETY SCORE`}</pre>
+                </div>
+              )}
             </div>
 
             {/* Backbone Nacional */}

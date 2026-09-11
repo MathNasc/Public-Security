@@ -32,7 +32,7 @@ export class Scheduler {
       await this.dispatchJobs();
       await this.recoverStuckJobs();
     } catch (e) {
-      console.error("[Scheduler] Error in tick:", e);
+      if (e.message && e.message.includes("ENOTFOUND")) { console.warn("[Scheduler] Banco de dados offline ou inacessível no ambiente atual."); } else { console.error("[Scheduler] Error in tick:", e); }
     } finally {
       this.isRunning = false;
     }

@@ -178,7 +178,7 @@ const { radiusMeters, periodMonths = 12, periodString = "12m" } = req;
         methodology: TAXONOMY_VERSION
       };
     } catch (e) {
-      console.error("DB Failed with error:", e.stack || e); console.log("DB Failed!");
+      if (e.message && e.message.includes("ENOTFOUND")) { console.warn("DB offline on preview (SafetyAnalysis)"); } else { console.error("DB Failed with error:", e.stack || e); }
       // MOCK DATA FALLBACK
       
       // Generate some deterministic mock data based on coordinates

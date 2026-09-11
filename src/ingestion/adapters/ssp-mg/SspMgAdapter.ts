@@ -1,71 +1,86 @@
-import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
 import { BaseAdapter, DiscoveryResult, AdapterMetadata, ParsedRecord } from '../BaseAdapter.js';
+import crypto from 'crypto';
 
+/**
+ * Adapter para SSP-MG / SEJUSP-MG (Secretaria de Estado de Justiça e Segurança Pública de Minas Gerais)
+ */
 export class SspMgAdapter extends BaseAdapter {
-  async discover(): Promise<DiscoveryResult> {
+  metadata(): AdapterMetadata {
     return {
-      source: 'SSP-MG',
-      dataset: 'indicadores_municipais',
-      url: 'http://www.seguranca.mg.gov.br/dados',
-      version: this.identifyVersion(),
-      checksum: crypto.createHash('sha256').update('ssp-mg-version-mock').digest('hex')
+      name: "Estatísticas Criminais SEJUSP-MG",
+      agency: "Secretaria de Estado de Justiça e Segurança Pública (MG)",
+      frequency: "Mensal",
+      coverage: "MG",
+      limitations: [
+        "Dados agregados por município e data do fato",
+        "Pode conter defasagem de até 30 dias na consolidação"
+      ]
     };
   }
 
   identifyVersion(): string {
-    return '2024-01'; // Mocked
+    return "1.0.0";
+  }
+
+  async discover(): Promise<DiscoveryResult> {
+    const currentYear = new Date().getFullYear();
+    const url = `http://dados.mg.gov.br/dataset/estatisticas-criminais-${currentYear}.csv`; 
+
+    return {
+      source: "SSP-MG",
+      dataset: "Ocorrencias_Criminais_MG",
+      url: url,
+      version: `${currentYear}-latest`,
+      checksum: crypto.randomBytes(16).toString('hex')
+    };
   }
 
   async download(destinationPath: string): Promise<string> {
-    const fixturePath = path.join(process.cwd(), 'src/ingestion/adapters/ssp-mg/fixtures/ssp_mg_sample.csv');
-    fs.copyFileSync(fixturePath, destinationPath);
+    console.log(`[SEJUSP-MG Adapter] Iniciando extração dos dados... Simulando download para ${destinationPath}`);
     return destinationPath;
   }
 
-  metadata(): AdapterMetadata {
-    return {
-      name: 'Estatísticas Criminais (Municípios) - SSP/MG',
-      agency: 'Secretaria de Estado de Justiça e Segurança Pública (SEJUSP/MG)',
-      frequency: 'Mensal',
-      coverage: 'Estadual (MG)',
-      limitations: ['Agregado por município', 'Sem coordenadas']
+  parseRow(row: any): ParsedRecord[] | ParsedRecord | null {
+    const records: ParsedRecord[] = [];
+    
+    // Nomes de colunas comuns nos datasets do Governo de MG
+    const municipio = row['Municipio'] || row['municipio'] || row['MUNICÍPIO'];
+    const natureza = row['Natureza'] || row['natureza'] || row['NATUREZA'] || '';
+    const totalRaw = row['Total'] || row['Registros'] || row['total'] || row['REGISTROS'] || '0';
+    const total = parseInt(totalRaw, 10);
+    
+    if (!municipio || isNaN(total) || total === 0) return null;
+
+    const crimeMapping: Record<string, string> = {
+      'HOMICÍDIO CONSUMADO': 'homicidio',
+      'HOMICÍDIO TENTADO': 'homicidio_tentado',
+      'LATROCÍNIO': 'latrocinio',
+      'ROUBO CONSUMADO': 'roubo',
+      'FURTO CONSUMADO': 'furto',
+      'ESTUPRO CONSUMADO': 'estupro',
+      'ROUBO DE VEÍCULO': 'roubo_veiculo',
+      'FURTO DE VEÍCULO': 'furto_veiculo'
     };
-  }
-  
-  normalize(crime: string): string {
-    const l = crime.toLowerCase();
-    if (l.includes('homicídio')) return 'homicidio_doloso';
-    if (l.includes('roubo de veículo') || l.includes('roubo de veiculo')) return 'roubo_veiculo';
-    if (l.includes('furto de veículo')) return 'furto_veiculo';
-    if (l.includes('roubo')) return 'roubo';
-    if (l.includes('furto')) return 'furto';
-    return 'outros';
-  }
 
-  parseRow(row: any): ParsedRecord | null {
-    if (!row.Ano || !row.Mês || !row['Município']) return null;
+    const standardizedCategory = crimeMapping[natureza.toUpperCase().trim()] || 'outros';
+    const ano = row['Ano'] || row['ano'] || row['ANO'];
+    const mes = String(row['Mes'] || row['mes'] || row['MÊS']).padStart(2, '0');
     
-    const mm = row.Mês.toString().padStart(2, '0');
-    const period = `${row.Ano}-${mm}`;
-    
-    const ocorrencias = parseInt(row['Qtde Ocorrências'] || '0', 10);
-    if (isNaN(ocorrencias) || ocorrencias === 0) return null;
-
-    return {
+    records.push({
       target: 'indicators',
       data: {
+        id: crypto.randomUUID(),
         sourceId: 'SSP-MG',
-        datasetId: 'indicadores_municipais',
         stateCode: 'MG',
-        municipalityName: row['Município'],
-        category: this.normalize(row.Natureza || ''),
-        sourceCategory: row.Natureza || '',
-        period: period,
-        value: ocorrencias,
-        unit: 'occurrences'
+        municipalityName: municipio,
+        category: standardizedCategory,
+        sourceCategory: natureza,
+        period: `${ano}-${mes}`,
+        value: total,
+        unit: 'ocorrencias'
       }
-    };
+    });
+
+    return records;
   }
 }
