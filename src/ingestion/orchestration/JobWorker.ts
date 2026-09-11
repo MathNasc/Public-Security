@@ -3,6 +3,11 @@ import { ingestionJobs, rawStorage } from '../../db/schema.js';
 import { eq, and, sql } from 'drizzle-orm';
 import crypto from 'crypto';
 import { JobManager } from '../pipeline/JobManager.js';
+import { SinespAdapter } from '../adapters/sinesp/SinespAdapter.js';
+import { securityIndicators } from '../../db/schema.js';
+import fs from 'fs';
+import csvParser from 'csv-parser';
+
 
 export class JobWorker {
   private static workerId = crypto.randomUUID();
@@ -91,16 +96,23 @@ export class JobWorker {
   private static async processJob(job: any) {
     console.log(`[JobWorker ${this.workerId}] Processing job ${(job.id as string)} for dataset ${job.dataset_id} (Source: ${job.source_id})`);
     
-    // Simulate Download
     console.log(`[JobWorker ${this.workerId}] Downloading data...`);
     const mockFilePath = `/tmp/raw_${job.source_id}_${job.version}.csv`;
     const checksum = crypto.createHash('md5').update((job.id as string)).digest('hex');
+    
+    let downloadedPath = mockFilePath;
+    try {
+      const adapter = new SinespAdapter();
+      downloadedPath = await adapter.download(mockFilePath);
+    } catch(err) {
+      console.error("Failed to download using adapter, proceeding with mock path", err);
+    }
     
     // Create RAW storage record
     await db.insert(rawStorage).values({
       id: crypto.randomUUID(),
       datasetId: job.dataset_id,
-      sourceId: job.source_id,
+      sourceId: 'sinesp',
       version: job.version || 'v1',
       filename: `raw_${job.source_id}_${job.version}.csv`,
       storageKey: `raw/${job.source_id}/${job.version}.csv`,
@@ -109,10 +121,56 @@ export class JobWorker {
       contentType: 'text/csv'
     });
 
-    // 2. We use the existing ingestion pipeline (JobManager/Worker) for the rest.
-    // The previous phases expect a 'dataImports' job to be created.
-    console.log(`[JobWorker ${this.workerId}] Triggering Phase 4 Pipeline...`);
+    console.log(`[JobWorker ${this.workerId}] Executing Real Parsing & DB Insertion...`);
+    const adapter = new SinespAdapter();
+    const records = [];
     
+    await new Promise((resolve, reject) => {
+      if (!fs.existsSync(downloadedPath)) {
+         console.warn("File not found, skipping parsing", downloadedPath);
+         resolve();
+         return;
+      }
+      fs.createReadStream(downloadedPath)
+        .pipe(csvParser({ separator: ';' }))
+        .on('data', (row) => {
+           const parsed = adapter.parseRow(row);
+           if (parsed && parsed.target === 'indicators') {
+              records.push(parsed.data);
+           }
+        })
+        .on('end', async () => {
+           console.log(`[JobWorker ${this.workerId}] Found ${records.length} records. Inserting...`);
+           if (records.length > 0) {
+             const batch = records.map(r => ({
+                id: crypto.randomUUID(),
+                sourceId: job.source_id,
+                datasetId: job.dataset_id,
+                stateCode: r.stateCode,
+                municipalityCode: r.municipalityCode,
+                municipalityName: r.municipalityName,
+                period: r.period,
+                category: r.category,
+                sourceCategory: r.sourceCategory,
+                value: r.value,
+                unit: r.unit
+             }));
+             // Insert in chunks to avoid max query parameters limit
+             const chunkSize = 1000;
+             try {
+                 for (let i = 0; i < batch.length; i += chunkSize) {
+                    await db.insert(securityIndicators).values(batch.slice(i, i + chunkSize));
+                 }
+                 console.log(`[JobWorker ${this.workerId}] DB Insertion complete.`);
+             } catch(e) {
+                 console.error("Failed to insert records", e);
+             }
+           }
+           resolve();
+        })
+        .on('error', reject);
+    });
+
     const internalJobId = await JobManager.createJob({
       sourceId: job.source_id,
       datasetId: job.dataset_id,

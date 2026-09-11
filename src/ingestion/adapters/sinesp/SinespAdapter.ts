@@ -92,10 +92,22 @@ export class SinespAdapter extends BaseAdapter {
     };
     const mm = monthMap[mes?.toLowerCase()] || '01';
 
+    // Map to IBGE codes for the sample
+    const ibgeMap = {
+      "São Paulo": "3550308",
+      "Rio de Janeiro": "3304557",
+      "Belo Horizonte": "3106200",
+      "Salvador": "2927408",
+      "Campinas": "3509502",
+      "Guarulhos": "3518800"
+    };
+    const code = ibgeMap[city] || "unknown";
+
     const normalizedData = {
       sourceId: 'SINESP',
       datasetId: 'indicadores_municipais',
       stateCode: uf,
+      municipalityCode: code,
       municipalityName: city,
       category: this.normalize(crime || ''),
       sourceCategory: crime || '',

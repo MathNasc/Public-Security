@@ -564,7 +564,7 @@ SINESP/MJSP            Fontes Estaduais
                                 {source.url.replace('https://www.', '')} <ArrowUpRight className="w-3 h-3" />
                               </a>
                             ) : (
-                              'Indisponível'
+                              <span className="text-slate-500 italic text-sm">URL não informada</span>
                             )}
                           </td>
                         </tr>
