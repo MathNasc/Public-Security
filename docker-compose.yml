@@ -20,7 +20,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     command: >
-      sh -c "npx drizzle-kit push && npm run start"
+      sh -c "npm run db:migrate && npm run start"
     networks:
       - vizinhanca_net
 

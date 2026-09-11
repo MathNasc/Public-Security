@@ -33,6 +33,7 @@ RUN rm -f package-lock.json && npm install drizzle-kit
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/src/db ./src/db
 COPY --from=builder /app/drizzle.config.ts ./
+COPY --from=builder /app/drizzle-pg ./drizzle-pg
 
 EXPOSE 3000
 
