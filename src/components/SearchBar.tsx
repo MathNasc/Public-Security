@@ -33,6 +33,13 @@ export function SearchBar({ className }: { className?: string }) {
       return;
     }
     
+    // Verifica se é um contexto seguro (HTTPS ou localhost). 
+    // Navegadores bloqueiam a API de geolocalização em HTTP remoto.
+    if (window.isSecureContext === false) {
+      alert("A localização automática foi bloqueada pelo navegador porque o site não está usando HTTPS.\n\nPor favor, digite o seu endereço manualmente na barra de pesquisa.");
+      return;
+    }
+    
     setGeoLoading(true);
     navigator.geolocation.getCurrentPosition(
       async (position) => {
@@ -54,7 +61,15 @@ export function SearchBar({ className }: { className?: string }) {
       (error) => {
         setGeoLoading(false);
         console.error("Erro ao obter localização:", error.message || error);
-        if(error.message&&error.message.includes("permissions policy")){alert("Dica: Para usar a localização dentro do editor, clique no ícone 'Abrir em nova guia' ↗ no topo do preview, ou acesse pelo link da Vercel!");}else{alert("Não foi possível acessar sua localização. Certifique-se de que o navegador tem permissão e recarregue a página.");}
+        if (error.code === 1) { // PERMISSION_DENIED
+          alert("Permissão de localização negada. Verifique as configurações do seu navegador ou digite o endereço manualmente.");
+        } else if (error.code === 2) { // POSITION_UNAVAILABLE
+          alert("Informação de localização indisponível no momento.");
+        } else if (error.code === 3) { // TIMEOUT
+          alert("O tempo limite para obter a localização esgotou.");
+        } else {
+          alert("Não foi possível acessar sua localização. Certifique-se de que o navegador tem permissão.");
+        }
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
