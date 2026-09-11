@@ -6,10 +6,13 @@ import { parse } from 'csv-parse';
 import { SspSpAdapter } from '../adapters/ssp/SspSpAdapter.js';
 import { IspRjAdapter } from '../adapters/isp-rj/IspRjAdapter.js';
 import { SspMgAdapter } from '../adapters/ssp-mg/SspMgAdapter.js';
+import { SespPrAdapter } from '../adapters/sesp-pr/SespPrAdapter.js';
 import { SinespAdapter } from '../adapters/sinesp/SinespAdapter.js';
 import { IspRjAdapter } from '../adapters/isp-rj/IspRjAdapter.js';
 import { SspMgAdapter } from '../adapters/ssp-mg/SspMgAdapter.js';
+import { SespPrAdapter } from '../adapters/sesp-pr/SespPrAdapter.js';
 import { SspMgAdapter } from '../adapters/ssp-mg/SspMgAdapter.js';
+import { SespPrAdapter } from '../adapters/sesp-pr/SespPrAdapter.js';
 import { randomUUID } from 'crypto';
 
 const MAX_ATTEMPTS = 3;
@@ -117,6 +120,7 @@ export class IngestionWorker {
       else if (job.source_id === 'SINESP') adapter = new SinespAdapter();
       else if (job.source_id === 'ISP-RJ') adapter = new IspRjAdapter();
       else if (job.source_id === 'SSP-MG') adapter = new SspMgAdapter();
+      else if (job.source_id === 'SESP-PR') adapter = new SespPrAdapter();
       else throw new Error("Unknown adapter for source: " + job.source_id);
 
       for await (const row of parser) {
