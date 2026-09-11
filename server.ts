@@ -5,6 +5,7 @@ import { globalScheduler } from './src/ingestion/orchestration/Scheduler.js';
 
 
 import { analysisCache } from "./src/lib/cache.js";
+import { AutoDownloader } from './src/ingestion/orchestration/AutoDownloader.js';
 import { IngestionWorker } from './src/ingestion/pipeline/Worker.js';
 import { rawStorage as pipelineRawStorage } from './src/ingestion/pipeline/Storage.js';
 import { JobManager } from './src/ingestion/pipeline/JobManager.js';
@@ -453,6 +454,17 @@ app.post("/api/admin/upload-ssp", adminAuth, upload.single("file"), async (req, 
   }
 });
 
+
+app.post("/api/admin/automation/trigger-all", adminAuth, async (req, res) => {
+  try {
+    const jobs = await AutoDownloader.triggerAll();
+    res.json({ success: true, message: `${jobs} fontes foram processadas (downloads + importações agendadas). O Worker está inserindo os dados no PostGIS em background.` });
+  } catch (err: any) {
+    console.error("Erro na automação:", err);
+    res.status(500).json({ error: "Falha ao acionar a automação" });
+  }
+});
+
 app.post("/api/admin/download-sample", adminAuth, async (req, res) => {
   const SAMPLE_URL = "https://raw.githubusercontent.com/NESPEDUFV/repositorio_dados_sbcup/main/crimes_2019_somente_sp_com_bairro.csv";
   const tempPath = path.join(os.tmpdir(), `sample_${Date.now()}.csv`);
@@ -528,6 +540,7 @@ app.post("/api/admin/ingestion/jobs/:id/retry", async (req, res) => {
   
 async function startServer() {
   const ingestionWorker = new IngestionWorker();
+  ingestionWorker.start().catch(console.error);
   
 
   if (process.env.NODE_ENV !== "production") {

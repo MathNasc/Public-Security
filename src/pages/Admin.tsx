@@ -254,11 +254,11 @@ export function Admin() {
 
     setIsUploading(true);
     try {
-      const response = await fetch("/api/admin/download-sample", { method: "POST" });
+      const response = await fetch("/api/admin/automation/trigger-all", { method: "POST", headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
       const data = await response.json();
       
       if (response.ok) {
-        alert(`Sucesso! ${data.inserted} registros da amostra real foram importados.`);
+        alert(data.message || "Automação iniciada com sucesso!");
         fetchSources();
       } else {
         alert(`Erro na importação: ${data.error || 'Desconhecido'}`);
@@ -292,7 +292,7 @@ export function Admin() {
               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 border border-slate-700 text-slate-200 font-semibold rounded-lg text-sm transition-colors w-full sm:w-auto text-center flex items-center justify-center gap-2"
             >
               <Database className="w-4 h-4" />
-              {isUploading ? "Processando..." : "Baixar Amostra Real SSP (Web)"}
+              {isUploading ? "Processando..." : "Rodar Automação Completa (Crawler Todos os Estados)"}
             </button>
 
             <div>
