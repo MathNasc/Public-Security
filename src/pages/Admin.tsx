@@ -208,6 +208,7 @@ export function Admin() {
     formData.append("file", file);
 
     setIsUploading(true);
+    setSources(prev => prev.map(s => ({...s, status: "PENDING"})));
 
     try {
       const response = await fetch("/api/admin/upload-ssp", {
@@ -239,7 +240,7 @@ export function Admin() {
       const data = await res.json();
       if (res.ok) {
         showToast(data.message, 'success');
-        fetchSources(); // Refresh UI after trigger
+        await fetchSources(); // Refresh UI after trigger
       } else {
         showToast('Erro: ' + data.error, 'error');
       }
@@ -250,16 +251,27 @@ export function Admin() {
     }
   };
 
-  const handleDownloadSample = async () => {
+  const triggerCrawler = async () => {
 
     setIsUploading(true);
     try {
-      const response = await fetch("/api/admin/automation/trigger-all", { method: "POST", headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+      
+      const token = prompt("Insira a senha de Admin (ADMIN_SECRET):");
+      if (!token) {
+        setIsUploading(false);
+        return;
+      }
+      
+      const response = await fetch("/api/admin/automation/trigger-all", { 
+        method: "POST", 
+        headers: { 'Authorization': `Bearer ${token}` } 
+      });
+  
       const data = await response.json();
       
       if (response.ok) {
-        showToast(data.message || 'Automação iniciada com sucesso!', 'success');
-        fetchSources();
+        showToast(data.message || 'Fontes verificadas com sucesso! Status atualizados.', 'success');
+        await fetchSources();
       } else {
         showToast(`Erro na importação: ${data.error || 'Desconhecido'}`, 'error');
       }
@@ -287,7 +299,7 @@ export function Admin() {
               {isUploading ? "Processando..." : "Executar Discovery SINESP (Nacional)"}
             </button>
             <button 
-              onClick={handleDownloadSample}
+              onClick={triggerCrawler}
               disabled={isUploading}
               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 border border-slate-700 text-slate-200 font-semibold rounded-lg text-sm transition-colors w-full sm:w-auto text-center flex items-center justify-center gap-2"
             >

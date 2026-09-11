@@ -444,7 +444,7 @@ app.post("/api/admin/upload-ssp", adminAuth, upload.single("file"), async (req, 
 app.post("/api/admin/automation/trigger-all", adminAuth, async (req, res) => {
   try {
     const jobs = await AutoDownloader.triggerAll();
-    res.json({ success: true, message: `${jobs} fontes foram processadas (downloads + importações agendadas). O Worker está inserindo os dados no PostGIS em background.` });
+    res.json({ success: true, message: `${jobs} fontes verificadas com sucesso! Status dos Links Oficiais atualizados.` });
   } catch (err: any) {
     console.error("Erro na automação:", err);
     res.status(500).json({ error: "Falha ao acionar a automação" });
