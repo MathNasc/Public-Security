@@ -9,6 +9,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard').then(module => ({ defau
 const Home = lazy(() => import('./pages/Home').then(module => ({ default: module.Home })));
 const Result = lazy(() => import('./pages/Result').then(module => ({ default: module.Result })));
 const Compare = lazy(() => import('./pages/Compare').then(module => ({ default: module.Compare })));
+const DataQuality = lazy(() => import('./pages/DataQuality').then(module => ({ default: module.DataQuality })));
 const Admin = lazy(() => import('./pages/Admin').then(module => ({ default: module.Admin })));
 const ApiDocs = lazy(() => import('./pages/ApiDocs').then(module => ({ default: module.ApiDocs })));
 
@@ -32,7 +33,7 @@ export default function App() {
               <Link to="/resultado?lat=-23.5505&lon=-46.6333&address=S%C3%A3o%20Paulo%2C%20SP" className="text-sm font-medium text-slate-300 hover:text-amber-500 transition-colors">Mapa</Link>
               <Link to="/dashboard" className="text-sm font-medium text-slate-300 hover:text-amber-500 transition-colors">Dashboard</Link>
               <Link to="/comparar" className="text-sm font-medium text-slate-300 hover:text-amber-500 transition-colors">Comparar</Link>
-              <Link to="/admin/data-sources" className="text-sm font-medium text-slate-300 hover:text-amber-500 transition-colors">Fontes</Link>
+              <Link to="/fontes" className="text-sm font-medium text-slate-300 hover:text-amber-500 transition-colors">Fontes</Link>
             </div>
 
             {/* Install Button & Mobile Quick Actions */}
@@ -53,8 +54,10 @@ export default function App() {
               <Route path="/resultado" element={<Result />} />
               <Route path="/comparar" element={<Compare />} />
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/admin" element={<Navigate to="/admin/data-sources" replace />} />
-              <Route path="/admin/data-sources" element={<Admin />} />
+              <Route path="/fontes" element={<DataQuality />} />
+              <Route path="/qualidade-dados" element={<DataQuality />} />
+              <Route path="/admin" element={<Admin />} />
+              <Route path="/admin/data-sources" element={<Navigate to="/admin" replace />} />
               <Route path="/api-docs" element={<ApiDocs />} />
             </Routes>
           </Suspense>

@@ -34,9 +34,9 @@ export const BottomNavigation: React.FC = () => {
     },
     {
       label: 'Fontes',
-      path: '/admin/data-sources',
+      path: '/fontes',
       icon: Database,
-      isActive: location.pathname.startsWith('/admin')
+      isActive: location.pathname === '/fontes' || location.pathname === '/qualidade-dados'
     }
   ];
 

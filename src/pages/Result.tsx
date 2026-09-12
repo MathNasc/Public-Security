@@ -163,7 +163,7 @@ export function Result() {
                 {geo.municipalityName} - {geo.stateAcronym}
               </span>
               <span className="text-slate-500">Código IBGE: {geo.ibgeCode}</span>
-              {geo.population && (
+              {typeof geo?.population === 'number' && (
                 <span className="text-slate-500">• População: {geo.population.toLocaleString('pt-BR')} hab.</span>
               )}
               <span className="text-slate-500">• Coord: {parseFloat(lat).toFixed(4)}, {parseFloat(lon).toFixed(4)}</span>

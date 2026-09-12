@@ -51,7 +51,7 @@ app.use('/health', healthRouter);
 // Public API with Rate Limiting
 app.use('/api/public', publicRouter);
 
-app.get("/api/admin/data-quality", async (req, res) => {
+const handleDataQuality = async (req: any, res: any) => {
   try {
     // Basic stats
     const totalRecords = Number((await db.select({ count: sql`count(*)` }).from(securityOccurrences))[0].count);
@@ -99,11 +99,14 @@ app.get("/api/admin/data-quality", async (req, res) => {
       categories: categoriesRows || [],
       recentBatches: batches || []
     });
-  } catch (error) {
-    console.warn("Error fetching data quality (DB missing?):", error.message);
+  } catch (error: any) {
+    console.warn("Error fetching data quality (DB missing?):", error?.message);
     res.status(500).json({ error: "Failed to fetch data quality" });
   }
-});
+};
+
+app.get("/api/data-quality", handleDataQuality);
+app.get("/api/admin/data-quality", handleDataQuality);
 
 
 

@@ -24,12 +24,12 @@ function DataQualityTab() {
             <MapPin className="w-4 h-4 text-amber-500"/> Cobertura Geográfica
           </h3>
           <ul className="space-y-2 text-sm text-slate-400">
-            <li className="flex justify-between"><span>Total de Ocorrências:</span> <span className="text-slate-200">{stats.coverage.total.toLocaleString('pt-BR')}</span></li>
-            <li className="flex justify-between"><span>Com coordenadas (Exatas):</span> <span className="text-emerald-400">{stats.coverage.withCoordinates.toLocaleString('pt-BR')}</span></li>
-            <li className="flex justify-between"><span>Sem coordenadas:</span> <span className="text-amber-400">{stats.coverage.withoutCoordinates.toLocaleString('pt-BR')}</span></li>
-            <li className="flex justify-between"><span>Geocodificadas (Recuperadas):</span> <span className="text-blue-400">{stats.coverage.geocoded.toLocaleString('pt-BR')}</span></li>
-            <li className="flex justify-between"><span>Falha de Geocodificação:</span> <span className="text-red-400">{stats.coverage.failedGeocoding.toLocaleString('pt-BR')}</span></li>
-            <li className="flex justify-between"><span>S/ Endereço (Impossível):</span> <span className="text-slate-500">{stats.coverage.notEnoughData.toLocaleString('pt-BR')}</span></li>
+            <li className="flex justify-between"><span>Total de Ocorrências:</span> <span className="text-slate-200">{(stats?.coverage?.total ?? 0).toLocaleString('pt-BR')}</span></li>
+            <li className="flex justify-between"><span>Com coordenadas (Exatas):</span> <span className="text-emerald-400">{(stats?.coverage?.withCoordinates ?? 0).toLocaleString('pt-BR')}</span></li>
+            <li className="flex justify-between"><span>Sem coordenadas:</span> <span className="text-amber-400">{(stats?.coverage?.withoutCoordinates ?? 0).toLocaleString('pt-BR')}</span></li>
+            <li className="flex justify-between"><span>Geocodificadas (Recuperadas):</span> <span className="text-blue-400">{(stats?.coverage?.geocoded ?? 0).toLocaleString('pt-BR')}</span></li>
+            <li className="flex justify-between"><span>Falha de Geocodificação:</span> <span className="text-red-400">{(stats?.coverage?.failedGeocoding ?? 0).toLocaleString('pt-BR')}</span></li>
+            <li className="flex justify-between"><span>S/ Endereço (Impossível):</span> <span className="text-slate-500">{(stats?.coverage?.notEnoughData ?? 0).toLocaleString('pt-BR')}</span></li>
           </ul>
         </div>
 
@@ -39,9 +39,9 @@ function DataQualityTab() {
             <Clock className="w-4 h-4 text-amber-500"/> Qualidade Temporal
           </h3>
           <ul className="space-y-2 text-sm text-slate-400">
-            <li className="flex justify-between"><span>Registro Mais Antigo:</span> <span className="text-slate-200">{stats.temporal.oldest ? new Date(stats.temporal.oldest).toLocaleDateString('pt-BR') : '-'}</span></li>
-            <li className="flex justify-between"><span>Registro Mais Recente:</span> <span className="text-slate-200">{stats.temporal.newest ? new Date(stats.temporal.newest).toLocaleDateString('pt-BR') : '-'}</span></li>
-            <li className="flex justify-between"><span>Registros sem Data:</span> <span className="text-amber-400">{stats.temporal.withoutDate.toLocaleString('pt-BR')}</span></li>
+            <li className="flex justify-between"><span>Registro Mais Antigo:</span> <span className="text-slate-200">{stats?.temporal?.oldest ? new Date(stats.temporal.oldest).toLocaleDateString('pt-BR') : '-'}</span></li>
+            <li className="flex justify-between"><span>Registro Mais Recente:</span> <span className="text-slate-200">{stats?.temporal?.newest ? new Date(stats.temporal.newest).toLocaleDateString('pt-BR') : '-'}</span></li>
+            <li className="flex justify-between"><span>Registros sem Data:</span> <span className="text-amber-400">{(stats?.temporal?.withoutDate ?? 0).toLocaleString('pt-BR')}</span></li>
           </ul>
         </div>
 
@@ -51,10 +51,10 @@ function DataQualityTab() {
             <Activity className="w-4 h-4 text-amber-500"/> Categorias Identificadas
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {(stats.categories || []).map((c: any) => (
+            {(stats?.categories || []).map((c: any) => (
               <div key={c.category} className="bg-slate-900/50 p-3 rounded-lg border border-slate-800">
                 <div className="text-xs text-slate-500 font-medium uppercase tracking-wider">{c.category || 'Desconhecida'}</div>
-                <div className="text-lg font-bold text-slate-200 mt-1">{c.count.toLocaleString('pt-BR')}</div>
+                <div className="text-lg font-bold text-slate-200 mt-1">{(c?.count ?? 0).toLocaleString('pt-BR')}</div>
               </div>
             ))}
           </div>
@@ -77,13 +77,13 @@ function DataQualityTab() {
               </tr>
             </thead>
             <tbody>
-              {(stats.recentBatches || []).map((b: any) => (
+              {(stats?.recentBatches || []).map((b: any) => (
                 <tr key={b.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                  <td className="px-4 py-3">{new Date(b.startedAt).toLocaleString('pt-BR')}</td>
+                  <td className="px-4 py-3">{b.startedAt ? new Date(b.startedAt).toLocaleString('pt-BR') : '-'}</td>
                   <td className="px-4 py-3 text-amber-500 truncate max-w-[150px]">{b.filename || b.sourceName}</td>
-                  <td className="px-4 py-3 text-slate-200">{b.validRecords.toLocaleString('pt-BR')}</td>
-                  <td className="px-4 py-3 text-amber-400">{b.withoutCoordinates.toLocaleString('pt-BR')}</td>
-                  <td className="px-4 py-3 text-blue-400">{b.geocoded.toLocaleString('pt-BR')}</td>
+                  <td className="px-4 py-3 text-slate-200">{(b.validRecords ?? 0).toLocaleString('pt-BR')}</td>
+                  <td className="px-4 py-3 text-amber-400">{(b.withoutCoordinates ?? 0).toLocaleString('pt-BR')}</td>
+                  <td className="px-4 py-3 text-blue-400">{(b.geocoded ?? 0).toLocaleString('pt-BR')}</td>
                 </tr>
               ))}
               {stats.recentBatches.length === 0 && (
@@ -597,8 +597,28 @@ export function Admin() {
       <div className='absolute inset-0 opacity-10 pointer-events-none' style={{ backgroundImage: "radial-gradient(circle at 2px 2px, #475569 1px, transparent 0)", backgroundSize: "40px 40px" }}></div>
       <div className="max-w-4xl mx-auto relative z-10">
         
+        {/* Restricted Notice */}
+        <div className="mb-6 bg-slate-900/90 border border-amber-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-500/10 rounded-lg border border-amber-500/20 text-amber-500">
+              <ShieldAlert className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-slate-200">Painel Administrativo Restrito</h2>
+              <p className="text-xs text-slate-400">Acesso via URL direta (<code className="text-amber-400 bg-black/40 px-1 py-0.5 rounded">/admin</code>). Não listado na navegação pública.</p>
+            </div>
+          </div>
+          <a
+            href="/fontes"
+            className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap"
+          >
+            <span>Ver Tela Pública (Fontes & Qualidade)</span>
+            <ArrowUpRight className="w-3.5 h-3.5 text-amber-500" />
+          </a>
+        </div>
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
-          <h1 className="text-3xl font-bold tracking-tight text-white">Admin / Data Ingestion</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">Administração & Ingestão de Dados</h1>
           <div className="flex flex-col sm:flex-row gap-2">
 
             <button 

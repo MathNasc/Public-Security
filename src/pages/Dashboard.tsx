@@ -82,7 +82,7 @@ export function Dashboard() {
             <Shield className="w-5 h-5 text-amber-500" />
             <h3 className="font-semibold text-sm uppercase tracking-wider">Total Registros</h3>
           </div>
-          <p className="text-4xl font-bold text-slate-100">{data.total.toLocaleString('pt-BR')}</p>
+          <p className="text-4xl font-bold text-slate-100">{(data?.total ?? 0).toLocaleString('pt-BR')}</p>
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
@@ -90,8 +90,8 @@ export function Dashboard() {
             <Activity className="w-5 h-5 text-red-400" />
             <h3 className="font-semibold text-sm uppercase tracking-wider">Principal Crime</h3>
           </div>
-          <p className="text-xl font-bold text-slate-100 truncate">{data.byCategory[0]?.name || "-"}</p>
-          <p className="text-sm text-slate-500 mt-1">{data.byCategory[0]?.value.toLocaleString('pt-BR')} ocorrências</p>
+          <p className="text-xl font-bold text-slate-100 truncate">{data?.byCategory?.[0]?.name || "-"}</p>
+          <p className="text-sm text-slate-500 mt-1">{(data?.byCategory?.[0]?.value ?? 0).toLocaleString('pt-BR')} ocorrências</p>
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
@@ -99,8 +99,8 @@ export function Dashboard() {
             <Map className="w-5 h-5 text-blue-400" />
             <h3 className="font-semibold text-sm uppercase tracking-wider">Estado Mais Afetado</h3>
           </div>
-          <p className="text-xl font-bold text-slate-100">UF: {data.byState[0]?.name || "-"}</p>
-          <p className="text-sm text-slate-500 mt-1">{data.byState[0]?.value.toLocaleString('pt-BR')} ocorrências</p>
+          <p className="text-xl font-bold text-slate-100">UF: {data?.byState?.[0]?.name || "-"}</p>
+          <p className="text-sm text-slate-500 mt-1">{(data?.byState?.[0]?.value ?? 0).toLocaleString('pt-BR')} ocorrências</p>
         </motion.div>
       </div>
 
