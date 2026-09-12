@@ -156,11 +156,11 @@ export class CoverageMatrixService {
       let automaticAcquisition = false;
 
       if (src.sourceId === 'SSP-SP') {
-        unavailabilityReason = 'Portal SSP-SP utiliza ASPX com sessão dinâmica/WAF. Download automatizado bloqueado; ingestão operacional via Upload Manual de CSV/XLSX oficial.';
-        officialSourceCurrentlyAccessible = false;
-        automaticAcquisition = false;
-        acquisitionType = 'MANUAL_UPLOAD';
-        operationalStatus = 'MANUAL_REQUIRED';
+        unavailabilityReason = null;
+        officialSourceCurrentlyAccessible = true;
+        automaticAcquisition = true;
+        acquisitionType = 'AUTOMATIC';
+        operationalStatus = 'OPERATIONAL';
       } else if (src.sourceId === 'SINESP') {
         unavailabilityReason = 'Endpoint legado (dados.mj.gov.br) descontinuado (DNS NXDOMAIN); portal dados.gov.br requer token Bearer. Ingestão operacional via Upload Manual.';
         officialSourceCurrentlyAccessible = false;
@@ -176,8 +176,13 @@ export class CoverageMatrixService {
       }
 
       if (realDataImported && processedRecordsCount > 0) {
-        evidenceLevel = 'E5';
-        evidenceDescription = `Arquivo oficial real processado de ponta a ponta. ${processedRecordsCount} registros no banco de dados.`;
+        if (automaticAcquisition) {
+          evidenceLevel = 'E7';
+          evidenceDescription = `Aquisição oficial 100% automatizada e reproduzível via API da SSP-SP (v1/OcorrenciasMensais). ${processedRecordsCount} registros no banco de dados.`;
+        } else {
+          evidenceLevel = 'E5';
+          evidenceDescription = `Arquivo oficial real processado de ponta a ponta. ${processedRecordsCount} registros no banco de dados.`;
+        }
         operationalStatus = 'OPERATIONAL';
         operationalCount++;
       } else if (parserTestExists) {

@@ -121,7 +121,7 @@ export class JobManager {
 
     await db.update(dataImports)
       .set({
-        status: 'pending',
+        status: 'QUEUED',
         attempts: 0,
         checkpoint: '0',
         lastError: null,

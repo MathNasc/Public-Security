@@ -7,8 +7,15 @@ coverage/
 .env
 .env.local
 .env.*.local
+# Local databases & storage
 local.db
 local.db-journal
+data/local_radar.db*
+data/temp/
+
+# Scraped dumps & temporary test files
+ssprs.html
+*.dump.html
 
 # Firebase config (contains secrets)
 firebase-applet-config.json

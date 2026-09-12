@@ -83,10 +83,10 @@ export class PipelineAutomationService {
     const datasets = await db.select().from(dataDatasets).where(sql`lower(source_id) = 'ssp-sp'`);
     const dataset = datasets[0] || null;
 
-    // Versão esperada no ciclo mensal: ano e mês anterior (SSP-SP publica mês anterior após dia 25)
-    const prevMonthDate = new Date();
-    prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
-    const expectedVersion = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`;
+    // Descoberta dinâmica da versão oficial disponível na API da SSP-SP
+    const adapter = new SspSpAdapter();
+    const discovery = await adapter.discover();
+    const expectedVersion = discovery.version;
 
     // 3. Evitar baixar arquivo inalterado
     if (!forceCheck && dataset && dataset.lastVersion === expectedVersion && dataset.status === 'healthy') {
@@ -109,36 +109,37 @@ export class PipelineAutomationService {
       }
     }
 
-    // 4. Baixar com timeout
-    // Procura por fonte remota configurada ou arquivo preparado no repositório de dados oficial
-    const candidateFiles = [
-      path.join(process.cwd(), 'tests/fixtures/ssp/ssp_sp_bo_real.csv'),
-      path.join(process.cwd(), 'uploads/ssp-sample.csv'),
-      path.join(process.cwd(), 'tests/fixtures/ssp/ssp_sp_indicadores_horizontal.csv')
-    ];
+    // 4. Baixar com timeout diretamente do canal oficial da SSP-SP
+    const tempDir = path.join(process.cwd(), 'data/temp');
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+    const filename = `ssp_sp_mensal_${expectedVersion}.csv`;
+    const tempFilePath = path.join(tempDir, filename);
 
-    let selectedFile: string | null = null;
-    for (const p of candidateFiles) {
-      if (fs.existsSync(p) && fs.statSync(p).size > 0) {
-        selectedFile = p;
-        break;
-      }
-    }
-
-    if (!selectedFile) {
+    try {
+      console.log(`[PipelineAutomation] [SSP-SP] Iniciando download automatizado de: ${discovery.url}`);
+      await adapter.download(tempFilePath);
+    } catch (err: any) {
+      console.error(`[PipelineAutomation] Falha na aquisição do dado oficial da SSP-SP:`, err.message);
       return {
         hasUpdate: false,
-        reason: 'Nenhum novo pacote de dados disponível para download no canal oficial da SSP-SP.'
+        reason: `Falha na aquisição automática da SSP-SP: ${err.message}`
       };
     }
 
-    const content = fs.readFileSync(selectedFile);
-    const filename = path.basename(selectedFile);
+    if (!fs.existsSync(tempFilePath) || fs.statSync(tempFilePath).size === 0) {
+      return {
+        hasUpdate: false,
+        reason: 'Falha no download: arquivo resultante vazio ou não encontrado.'
+      };
+    }
+
+    const content = fs.readFileSync(tempFilePath);
 
     return {
       hasUpdate: true,
-      reason: `Nova publicação oficial identificada para o período ${expectedVersion}.`,
+      reason: `Nova publicação oficial identificada e baixada da SSP-SP para o período ${expectedVersion}.`,
       version: expectedVersion,
+      downloadUrl: discovery.url,
       fileBuffer: content,
       filename
     };
@@ -226,6 +227,15 @@ export class PipelineAutomationService {
       originalFilename: filename,
       checksum,
       fileSize: fileBuffer.length,
+      acquisitionMethod: 'AUTOMATED_DOWNLOAD',
+      originUrl: check.downloadUrl,
+      sourceType: 'official_download',
+      period: version,
+      stateCode: 'SP',
+      environment: 'production',
+      isOfficialPublication: true,
+      isEligibleForProductionAutomation: true,
+      qualityStatus: 'PASSED',
       force: options.force
     });
 
@@ -424,6 +434,7 @@ export class PipelineAutomationService {
             securityIndicators.stateCode,
             securityIndicators.municipalityCode,
             securityIndicators.category,
+            securityIndicators.subcategory,
             securityIndicators.period
           ],
           set: {

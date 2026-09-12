@@ -559,6 +559,7 @@ export class IngestionWorker {
             securityIndicators.stateCode,
             securityIndicators.municipalityCode,
             securityIndicators.category,
+            securityIndicators.subcategory,
             securityIndicators.period
           ],
           set: {

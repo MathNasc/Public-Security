@@ -1,6 +1,10 @@
 import { BaseAdapter, DiscoveryResult, AdapterMetadata, ParsedRecord, SchemaValidationResult } from '../BaseAdapter.js';
 import { normalizeLegacyCategory } from '../../../services/Taxonomy.js';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import axios from 'axios';
+import * as XLSX from 'xlsx';
 
 /**
  * Adapter oficial para SSP-SP (Secretaria de Segurança Pública de São Paulo)
@@ -31,19 +35,138 @@ export class SspSpAdapter extends BaseAdapter {
     return `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
   }
 
+  /**
+   * Descoberta automatizada e dinâmica da última publicação disponível na API oficial da SSP-SP.
+   */
   async discover(): Promise<DiscoveryResult> {
-    const version = this.identifyVersion();
+    const currentYear = new Date().getFullYear();
+    let latestMonth = 1;
+    const targetYear = currentYear;
+
+    try {
+      // 1. Consulta agrupada oficial da SSP-SP para identificar o último mês publicado
+      const checkUrl = `https://www.ssp.sp.gov.br/v1/OcorrenciasMensais/RecuperaDadosMensaisAgrupados?ano=${currentYear}&grupoDelito=6&tipoGrupo=ESTADO&idGrupo=0`;
+      const res = await axios.get(checkUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json'
+        },
+        timeout: 10000
+      });
+
+      if (res.data?.success && res.data?.data?.[0]?.listaDados) {
+        const monthCols = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+        for (const d of res.data.data[0].listaDados) {
+          for (let i = 0; i < 12; i++) {
+            if (typeof d[monthCols[i]] === 'number' && d[monthCols[i]] > 0) {
+              if (i + 1 > latestMonth) latestMonth = i + 1;
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn(`[SSP-SP Adapter] Aviso ao consultar discovery online: ${e.message}. Usando mês corrente.`);
+      latestMonth = Math.max(1, new Date().getMonth());
+    }
+
+    const version = `${targetYear}-${String(latestMonth).padStart(2, '0')}`;
+    const officialExportUrl = `https://www.ssp.sp.gov.br/v1/OcorrenciasMensais/ExportarMensal?ano=${targetYear}&grupoDelito=6&tipoGrupo=${encodeURIComponent('MUNICÍPIO')}&idGrupo=565`;
+
     return {
       source: "SSP-SP",
       dataset: "ocorrencias_criminais_sp",
-      url: `https://www.ssp.sp.gov.br/transparenciassp/Consulta.aspx`,
+      url: officialExportUrl,
       version,
-      checksum: crypto.createHash('sha256').update(`ssp-sp-${version}`).digest('hex')
+      checksum: crypto.createHash('sha256').update(`ssp-sp-${version}-${targetYear}`).digest('hex')
     };
   }
 
+  /**
+   * Aquisição automática real dos dados publicados pela SSP-SP.
+   * Baixa a planilha oficial XLSX do endpoint público da SSP-SP e converte em CSV padronizado.
+   */
   async download(destinationPath: string): Promise<string> {
-    console.log(`[SSP-SP Adapter] Stream de ingestão preparado para ${destinationPath}`);
+    const discovery = await this.discover();
+    console.log(`[SSP-SP Adapter] Iniciando download automatizado real do endpoint oficial: ${discovery.url}`);
+    
+    let rawBuffer: Buffer | null = null;
+    let lastError: Error | null = null;
+
+    // Retry com backoff exponencial para resiliência de rede pública
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const response = await axios.get(discovery.url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/octet-stream, */*'
+          },
+          responseType: 'arraybuffer',
+          timeout: 25000
+        });
+
+        if (response.status === 200 && response.data && response.data.length > 0) {
+          rawBuffer = Buffer.from(response.data);
+          break;
+        }
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`[SSP-SP Adapter] Tentativa ${attempt}/3 de download falhou (${err.message}). Aguardando retry...`);
+        await new Promise(r => setTimeout(r, 1500 * attempt));
+      }
+    }
+
+    if (!rawBuffer || rawBuffer.length === 0) {
+      throw new Error(`Falha na aquisição do arquivo oficial da SSP-SP: ${lastError?.message || 'Arquivo vazio recebido'}`);
+    }
+
+    // Preserva o arquivo binário XLSX original oficial da SSP-SP no RAW storage
+    const rawXlsxPath = destinationPath.endsWith('.csv') 
+      ? destinationPath.replace(/\.csv$/, '.xlsx') 
+      : `${destinationPath}.xlsx`;
+    
+    const destDir = path.dirname(destinationPath);
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true });
+    }
+    fs.writeFileSync(rawXlsxPath, rawBuffer);
+    console.log(`[SSP-SP Adapter] Arquivo XLSX oficial bruto persistido em: ${rawXlsxPath} (${rawBuffer.length} bytes)`);
+
+    // Converte o arquivo XLSX oficial da SSP-SP para o formato tabular CSV esperado pelo pipeline
+    const wb = XLSX.read(rawBuffer, { type: 'buffer' });
+    const firstSheetName = wb.SheetNames[0];
+    const sheet = wb.Sheets[firstSheetName];
+    const rawRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+    const header = ['Municipio', 'Natureza', 'Ano', 'Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro', 'Total'];
+    const csvLines = [header.join(',')];
+    const currentYear = new Date().getFullYear();
+
+    for (let i = 1; i < rawRows.length; i++) {
+      const r = rawRows[i];
+      if (!r || r.length < 2) continue;
+      const natureza = String(r[0] || '').trim();
+      if (!natureza) continue;
+
+      const values = [];
+      for (let m = 1; m <= 12; m++) {
+        let v = r[m];
+        if (v === '...' || v === undefined || v === null) v = '0';
+        values.push(String(v).replace(/\./g, '').trim());
+      }
+      const total = String(r[13] || '0').replace(/\./g, '').trim();
+      csvLines.push([
+        `"São Paulo"`,
+        `"${natureza.replace(/"/g, '""')}"`,
+        currentYear,
+        ...values,
+        total
+      ].join(','));
+    }
+
+    const csvContent = csvLines.join('\n');
+    fs.writeFileSync(destinationPath, csvContent, 'utf-8');
+    console.log(`[SSP-SP Adapter] Arquivo CSV estruturado gerado com sucesso: ${destinationPath} (${csvLines.length - 1} naturezas criminais)`);
+
     return destinationPath;
   }
 

@@ -34,7 +34,7 @@ if (useLibsqlFallback) {
   libsqlClient.execute('PRAGMA busy_timeout = 30000;').catch(() => {});
 
   // Criação automática de tabelas essenciais no SQLite local
-  libsqlClient.execute(`
+  libsqlClient.executeMultiple(`
     CREATE TABLE IF NOT EXISTS source_registry (
       id TEXT PRIMARY KEY,
       state TEXT NOT NULL,
