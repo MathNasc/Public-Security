@@ -22,6 +22,13 @@ export class JobManager {
     originalFilename: string;
     checksum: string;
     fileSize: number;
+    stateCode?: string;
+    period?: string;
+    acquisitionMethod?: string;
+    originUrl?: string;
+    parserUsed?: string;
+    parserVersion?: string;
+    qualityStatus?: string;
     force?: boolean;
   }): Promise<CreateJobResult> {
     if (!params.force && params.checksum) {
@@ -55,6 +62,13 @@ export class JobManager {
       originalFilename: params.originalFilename,
       checksum: params.checksum,
       fileSize: params.fileSize,
+      stateCode: params.stateCode || null,
+      period: params.period || null,
+      acquisitionMethod: params.acquisitionMethod || 'MANUAL_UPLOAD',
+      originUrl: params.originUrl || null,
+      parserUsed: params.parserUsed || null,
+      parserVersion: params.parserVersion || null,
+      qualityStatus: params.qualityStatus || 'PENDING',
       status: 'QUEUED',
       attempts: 0,
       recordsRead: 0,

@@ -376,11 +376,11 @@ export class PipelineAutomationService {
   }
 
   /**
-   * 14. Recalcular indicadores agregados municipais baseados nas ocorrências válidas
+   * 14. Recalcular e persistir indicadores agregados municipais baseados nas ocorrências válidas
    */
-  private static async recalculateIndicatorsForState(stateCode: string): Promise<void> {
+  public static async recalculateIndicatorsForState(stateCode: string): Promise<void> {
     try {
-      console.log(`[PipelineAutomation] Recalculando indicadores municipais para o estado ${stateCode}...`);
+      console.log(`[PipelineAutomation] Recalculando e persistindo indicadores municipais para o estado ${stateCode}...`);
       
       const rows = await db.execute(sql`
         SELECT 
@@ -397,7 +397,42 @@ export class PipelineAutomationService {
 
       const records = Array.isArray(rows) ? rows : (rows as any).rows || [];
       if (records.length > 0) {
-        console.log(`[PipelineAutomation] ${records.length} grupos de indicadores consolidados para ${stateCode}.`);
+        const sourceId = `SSP-${stateCode.toUpperCase()}`;
+        const valuesToInsert = records.map((r: any) => {
+          const yr = r.year || new Date().getFullYear();
+          const mo = String(r.month || 1).padStart(2, '0');
+          const period = `${yr}-${mo}`;
+          return {
+            id: crypto.randomUUID(),
+            sourceId,
+            datasetId: 'indicadores_agregados',
+            stateCode,
+            municipalityCode: r.municipality_code,
+            category: r.category,
+            period,
+            value: Number(r.total_count),
+            unit: 'occurrences',
+            granularity: 'municipality',
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+        });
+
+        await db.insert(securityIndicators).values(valuesToInsert).onConflictDoUpdate({
+          target: [
+            securityIndicators.sourceId,
+            securityIndicators.stateCode,
+            securityIndicators.municipalityCode,
+            securityIndicators.category,
+            securityIndicators.period
+          ],
+          set: {
+            value: sql`excluded.value`,
+            updatedAt: new Date()
+          }
+        });
+
+        console.log(`[PipelineAutomation] ${records.length} grupos de indicadores consolidados e persistidos em security_indicators para ${stateCode}.`);
       }
     } catch (e: any) {
       console.warn(`[PipelineAutomation] Aviso ao recalcular indicadores: ${e.message}`);

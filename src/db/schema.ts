@@ -93,6 +93,15 @@ export const dataImports = pgTable("data_imports", {
   recordsWithInvalidCoordinates: integer("records_with_invalid_coordinates").default(0),
   recordsWithUnknownMunicipality: integer("records_with_unknown_municipality").default(0),
   
+  // Provenance & Acquisition Metadata
+  stateCode: text("state_code"),
+  period: text("period"),
+  acquisitionMethod: text("acquisition_method").default("MANUAL_UPLOAD"),
+  originUrl: text("origin_url"),
+  parserUsed: text("parser_used"),
+  parserVersion: text("parser_version"),
+  qualityStatus: text("quality_status").default("PENDING"),
+
   createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -293,9 +302,14 @@ export const generatedSummaries = pgTable("generated_summaries", {
 
 
 // ==============================================
-// 6. CONTINUOUS INGESTION (PHASE 10)
+// 6. CONTINUOUS INGESTION (DEPRECATED LEGACY SCHEMA)
 // ==============================================
 
+/**
+ * @deprecated TABELA OBSOLETA / LEGADA.
+ * O pipeline de ingestão ativo utiliza exclusivamente a tabela canonical 'data_imports' (dataImports).
+ * Esta definição é mantida apenas para retrocompatibilidade de tipos Drizzle.
+ */
 export const ingestionJobs = pgTable("ingestion_jobs", {
   id: text("id").primaryKey(),
   datasetId: text("dataset_id").notNull(),

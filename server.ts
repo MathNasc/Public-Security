@@ -20,6 +20,7 @@ import { publicApiLimiter, geocodeLimiter } from './src/middleware/rateLimiter.j
 import { SummaryService } from './src/services/SummaryService.js';
 import { AiExplanationService } from './src/services/AiExplanationService.js';
 import { GeoNormalizationService } from './src/services/GeoNormalizationService.js';
+import { CoverageMatrixService } from './src/services/CoverageMatrixService.js';
 import { healthRouter } from './src/api/health.js';
 import { logger } from './src/lib/logger.js';
 import cors from "cors";
@@ -471,6 +472,150 @@ app.get("/api/data-sources", async (req, res) => {
   }
 });
 
+app.get("/api/coverage-matrix", async (req, res) => {
+  try {
+    const matrix = await CoverageMatrixService.getMatrix();
+    res.json(matrix);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to build coverage matrix", details: error.message });
+  }
+});
+
+app.get("/api/admin/coverage-matrix", adminAuth, async (req, res) => {
+  try {
+    const matrix = await CoverageMatrixService.getMatrix();
+    res.json(matrix);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to build coverage matrix", details: error.message });
+  }
+});
+
+
+app.post("/api/admin/ingestion/preview", adminAuth, upload.single("file"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No file uploaded" });
+  }
+
+  try {
+    const filePath = req.file.path;
+    const fileStat = fs.statSync(filePath);
+    
+    if (fileStat.size === 0) {
+      fs.unlinkSync(filePath);
+      return res.status(400).json({ 
+        valid: false, 
+        error: "Quality Gate: Arquivo vazio (0 bytes). Importação rejeitada." 
+      });
+    }
+
+    const fileBuffer = fs.readFileSync(filePath);
+    const checksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+
+    const existing = await db.select().from(dataImports).where(and(eq(dataImports.checksum, checksum), eq(dataImports.status, 'COMPLETED')));
+    const isAlreadyImported = existing.length > 0;
+
+    const textContent = fileBuffer.toString('utf8', 0, Math.min(fileBuffer.length, 65536));
+    const lines = textContent.split(/\r?\n/).filter(l => l.trim().length > 0);
+    const headerLine = lines[0] || '';
+    const delimiter = headerLine.includes(';') ? ';' : ',';
+    const headers = headerLine.split(delimiter).map(h => h.trim().replace(/^["']|["']$/g, ''));
+    
+    const sampleRows = lines.slice(1, 11).map(l => {
+      const parts = l.split(delimiter).map(p => p.trim().replace(/^["']|["']$/g, ''));
+      const obj: Record<string, string> = {};
+      headers.forEach((h, idx) => {
+        obj[h] = parts[idx] || '';
+      });
+      return obj;
+    });
+
+    const requestedSource = req.body.sourceId ? String(req.body.sourceId).toUpperCase() : null;
+    let detectedSourceId = requestedSource || 'SSP-SP';
+
+    if (!requestedSource) {
+      const headerStr = headers.join(',').toUpperCase();
+      if (headerStr.includes('NUM_BO') || headerStr.includes('NATUREZA_APURADA')) detectedSourceId = 'SSP-SP';
+      else if (headerStr.includes('VALOR') || headerStr.includes('MUNICIPIO')) detectedSourceId = 'SINESP';
+      else if (headerStr.includes('ISP') || headerStr.includes('DP')) detectedSourceId = 'ISP-RJ';
+    }
+
+    fs.unlinkSync(filePath);
+
+    res.json({
+      valid: true,
+      originalFilename: req.file.originalname,
+      fileSize: fileStat.size,
+      checksum,
+      detectedSourceId,
+      headers,
+      sampleRows,
+      sampleCount: sampleRows.length,
+      estimatedTotalRows: Math.max(0, lines.length - 1),
+      isAlreadyImported,
+      existingJobId: isAlreadyImported ? existing[0].id : null,
+      qualityCheck: {
+        schemaValid: headers.length >= 2,
+        sampleValidCount: sampleRows.length,
+        sampleInvalidCount: 0
+      }
+    });
+  } catch (error: any) {
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ error: "Failed to preview file", details: error.message });
+  }
+});
+
+app.post("/api/admin/ingestion/upload", adminAuth, upload.single("file"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No file uploaded" });
+  }
+
+  try {
+    const sourceId = (req.body.sourceId || 'SSP-SP').toUpperCase();
+    const datasetId = req.body.datasetId || sourceId.toLowerCase();
+    const stateCode = req.body.stateCode || (sourceId === 'SSP-SP' ? 'SP' : sourceId.split('-')[1] || 'BR');
+    const period = req.body.period || null;
+    const acquisitionMethod = req.body.acquisitionMethod || 'MANUAL_UPLOAD';
+    const originUrl = req.body.originUrl || null;
+    const force = req.body.force === 'true' || req.body.force === true;
+
+    const originalFilename = req.file.originalname;
+    const stream = fs.createReadStream(req.file.path);
+    const version = Date.now().toString();
+
+    const stored = await pipelineRawStorage.put(datasetId, version, originalFilename, stream);
+
+    const result = await JobManager.createJob({
+      sourceId,
+      datasetId,
+      rawFilePath: stored.path,
+      originalFilename: stored.metadata.filename,
+      checksum: stored.metadata.checksum,
+      fileSize: stored.metadata.size,
+      stateCode,
+      period,
+      acquisitionMethod,
+      originUrl,
+      force
+    });
+
+    if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+
+    res.status(202).json({
+      success: true,
+      message: result.isDuplicate ? "Arquivo duplicado (checksum idêntico). Reutilizado Job concluído." : "Job de ingestão enfileirado no pipeline oficial.",
+      jobId: result.jobId,
+      isDuplicate: result.isDuplicate || false,
+      status: result.status,
+      checksum: stored.metadata.checksum,
+      rawFilePath: stored.path
+    });
+  } catch (error: any) {
+    logger.error("Ingestion upload processing error", { event: "ingestion_upload_error", error: error.message });
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ error: "Failed to queue file", details: error.message });
+  }
+});
 
 app.post("/api/admin/upload-ssp", adminAuth, upload.single("file"), async (req, res) => {
   if (!req.file) {
@@ -487,22 +632,25 @@ app.post("/api/admin/upload-ssp", adminAuth, upload.single("file"), async (req, 
     const stored = await pipelineRawStorage.put(datasetId, version, originalFilename, stream);
     
     // Create Job
-    const jobId = await JobManager.createJob({
+    const result = await JobManager.createJob({
       sourceId: 'SSP-SP',
       datasetId: datasetId,
       rawFilePath: stored.path,
       originalFilename: stored.metadata.filename,
       checksum: stored.metadata.checksum,
       fileSize: stored.metadata.size,
+      stateCode: 'SP',
+      acquisitionMethod: 'MANUAL_UPLOAD'
     });
     
     // Cleanup multer temp file
-    fs.unlinkSync(req.file.path);
+    if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     
     res.status(202).json({ 
       success: true, 
-      message: "Ingestion job queued successfully.",
-      jobId: jobId 
+      message: result.isDuplicate ? "Arquivo duplicado (checksum idêntico). Reutilizado Job concluído." : "Job de ingestão enfileirado com sucesso.",
+      jobId: result.jobId,
+      isDuplicate: result.isDuplicate || false
     });
   } catch (error: any) {
     logger.error("SSP upload processing error", { event: "ssp_upload_error", error: error.message, cause: error.cause ? error.cause.message : null });

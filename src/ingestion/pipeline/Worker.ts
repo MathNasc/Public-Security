@@ -165,11 +165,20 @@ export class IngestionWorker {
   /**
    * Execução direta de um Job para testes ou processamento manual síncrono.
    */
-  public async processJobDirectly(job: any): Promise<{ success: boolean; metrics: IngestionMetrics; error?: string }> {
-    return this.processJob(job);
+  public async processJobDirectly(jobOrId: any): Promise<{ success: boolean; metrics: IngestionMetrics; error?: string }> {
+    return this.processJob(jobOrId);
   }
 
-  private async processJob(job: any): Promise<{ success: boolean; metrics: IngestionMetrics; error?: string }> {
+  private async processJob(jobOrId: any): Promise<{ success: boolean; metrics: IngestionMetrics; error?: string }> {
+    let job = jobOrId;
+    if (typeof jobOrId === 'string') {
+      const rows = await db.select().from(dataImports).where(eq(dataImports.id, jobOrId));
+      if (rows.length === 0) {
+        throw new Error(`Job com ID ${jobOrId} não foi encontrado em data_imports.`);
+      }
+      job = rows[0];
+    }
+
     console.log(`[Worker ${this.workerId}] Iniciando execução do Job: ${job.id} (Fonte: ${job.sourceId || job.source_id})`);
     
     const sourceId = (job.sourceId || job.source_id || '').toUpperCase();
@@ -344,12 +353,19 @@ export class IngestionWorker {
 
       // Step 19: Registro de Sucesso do Job
       const finishedAt = new Date();
+      const parserUsed = adapter ? adapter.constructor.name : 'UnknownAdapter';
+      const parserVersion = (adapter && adapter.version) ? adapter.version : '1.0.0';
+      const qualityStatus = (metrics.recordsInvalid > 0 || metrics.recordsWithInvalidCoordinates > 0 || metrics.recordsWithUnknownMunicipality > 0) ? 'WARNING' : 'PASSED';
+
       await db
         .update(dataImports)
         .set({
           status: 'COMPLETED',
           finishedAt,
           checkpoint: checkpoint.toString(),
+          parserUsed,
+          parserVersion,
+          qualityStatus,
           recordsRead: metrics.recordsRead,
           recordsValid: metrics.recordsValid,
           recordsInvalid: metrics.recordsInvalid,
@@ -417,6 +433,7 @@ export class IngestionWorker {
           .update(dataImports)
           .set({
             status: 'FAILED',
+            qualityStatus: 'REJECTED',
             attempts: currentAttempts,
             lastError: error.message,
             failedAt,

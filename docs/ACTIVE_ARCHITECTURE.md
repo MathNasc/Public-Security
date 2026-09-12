@@ -173,7 +173,7 @@ O pipeline oficial foi validado e testado de ponta a ponta com suíte automatiza
 14. **Validação de Qualidade (Quality Gate)**: Checagem de coordenadas geográficas no polígono do Brasil (-35° a +5.5° Lat, -75° a -30° Lon), expurgo de coordenadas corrompidas e contabilização de anomalias.
 15. **Deduplicação**: Filtragem em memória no mesmo lote e constraints únicas de banco com política `ON CONFLICT`.
 16. **Persistência Transacional**: Inserções em lotes (`BATCH_SIZE = 1000`) nas tabelas `security_occurrences` e `security_indicators`.
-17. **Atualização dos Indicadores**: Persistência de métricas e suporte a agregações espaciais via `SafetyAnalysisService`.
+17. **Atualização dos Indicadores**: Persistência de métricas consolidadas municipais via `PipelineAutomationService.recalculateIndicatorsForState()` com UPSERT atômico na tabela `security_indicators`, suportando também agregações espaciais via `SafetyAnalysisService`.
 18. **Invalidação de Cache**: Limpeza atômica do cache em memória `analysisCache.clear()`.
 19. **Registro de Sucesso**: Atualização do job em `data_imports` para `COMPLETED`, com checkpoint final e métricas de auditoria completas.
 20. **Registro de Falha**: Em caso de erro, marcação do job como `FAILED` com `last_error` descritivo e sem descarte de dados válidos preexistentes.

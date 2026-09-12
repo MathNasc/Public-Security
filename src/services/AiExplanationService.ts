@@ -117,6 +117,14 @@ export class AiExplanationService {
     let response = rawResponse.trim();
     const query = (userQuery || context.userQuery || '').toLowerCase();
 
+    // 0. Detecção de Prompt Injection / Jailbreak / Inversão de Escopo
+    if (
+      /ignore\s+(todas\s+as\s+)?instruções|modo\s+dan|system\s+override|me\s+conte\s+uma\s+piada|como\s+hackear|do\s+anything\s+now/i.test(query)
+    ) {
+      violations.push('Prompt injection or jailbreak attempt detected in user query');
+      response = 'Como assistente oficial do Public Security, meu papel é estritamente explicar e analisar os indicadores de segurança pública oficiais e consolidados. Não realizo tarefas fora do escopo de análise estatística de segurança pública.';
+    }
+
     // 1. Detecção de Prompt Leakage / Revelação de Instruções Internas
     if (
       /SYSTEM_PROMPT|REGRAS RÍGIDAS DE ESCOPO|PROIBIÇÕES ABSOLUTAS|FLUXO OBRIGATÓRIO DE OPERAÇÃO|Você é a Camada de Explicação/i.test(response)
@@ -191,8 +199,8 @@ ${JSON.stringify(sanitizedContext, null, 2)}
 ${context.userQuery ? `PERGUNTA / SOLICITAÇÃO DO USUÁRIO:\n"${context.userQuery}"` : 'TAREFA: Gere um resumo explicativo analítico, claro, objetivo e neutro dos indicadores do contexto.'}`;
 
     const modelsToTry = [
-      'gemini-2.5-flash',
-      'gemini-2.5-pro',
+      'gemini-3.6-flash',
+      'gemini-3.1-pro-preview',
       'gemini-2.5-flash',
       'gemini-2.5-pro'
     ];

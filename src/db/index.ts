@@ -135,9 +135,29 @@ if (useLibsqlFallback) {
       records_without_coordinates INTEGER DEFAULT 0,
       records_with_invalid_coordinates INTEGER DEFAULT 0,
       records_with_unknown_municipality INTEGER DEFAULT 0,
+      state_code TEXT,
+      period TEXT,
+      acquisition_method TEXT DEFAULT 'MANUAL_UPLOAD',
+      origin_url TEXT,
+      parser_used TEXT,
+      parser_version TEXT,
+      quality_status TEXT DEFAULT 'PENDING',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `).catch(() => {});
+
+  const dataImportsAlterCols = [
+    "ALTER TABLE data_imports ADD COLUMN state_code TEXT;",
+    "ALTER TABLE data_imports ADD COLUMN period TEXT;",
+    "ALTER TABLE data_imports ADD COLUMN acquisition_method TEXT DEFAULT 'MANUAL_UPLOAD';",
+    "ALTER TABLE data_imports ADD COLUMN origin_url TEXT;",
+    "ALTER TABLE data_imports ADD COLUMN parser_used TEXT;",
+    "ALTER TABLE data_imports ADD COLUMN parser_version TEXT;",
+    "ALTER TABLE data_imports ADD COLUMN quality_status TEXT DEFAULT 'PENDING';"
+  ];
+  for (const q of dataImportsAlterCols) {
+    libsqlClient.execute(q).catch(() => {});
+  }
 
   libsqlClient.execute(`
     CREATE TABLE IF NOT EXISTS security_occurrences (
@@ -683,6 +703,26 @@ if (useLibsqlFallback) {
   }).catch(() => {});
 
   dbInstance = drizzleLibsql(libsqlClient, { schema });
+  dbInstance.execute = async (query: any) => {
+    if (typeof query === 'string') {
+      const res = await libsqlClient.execute(query);
+      return res.rows;
+    }
+    if (query && typeof query === 'object') {
+      try {
+        const prepared = dbInstance.dialect.sqlToQuery(query);
+        const res = await libsqlClient.execute({ sql: prepared.sql, args: prepared.params });
+        return res.rows;
+      } catch {
+        const sqlText = query.sql || query.text;
+        if (sqlText) {
+          const res = await libsqlClient.execute({ sql: sqlText, args: query.params || [] });
+          return res.rows;
+        }
+      }
+    }
+    return [];
+  };
 
   queryClientInstance = (first: any, ...values: any[]) => {
     if (Array.isArray(first) && 'raw' in first) {
