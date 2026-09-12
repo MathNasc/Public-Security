@@ -32,19 +32,19 @@ const POPULAR_PRESETS = [
     loc2: { address: "Moema, São Paulo, SP", lat: -23.6041, lon: -46.6663 }
   },
   {
-    name: "RJ: Copacabana vs. Barra",
-    loc1: { address: "Copacabana, Rio de Janeiro, RJ", lat: -22.9694, lon: -43.1868 },
-    loc2: { address: "Barra da Tijuca, Rio de Janeiro, RJ", lat: -23.0003, lon: -43.3659 }
+    name: "SP: Centro vs. Pinheiros",
+    loc1: { address: "Praça da Sé, Centro, São Paulo, SP", lat: -23.5505, lon: -46.6333 },
+    loc2: { address: "Pinheiros, São Paulo, SP", lat: -23.5673, lon: -46.6934 }
   },
   {
-    name: "MG: Savassi vs. Centro (BH)",
-    loc1: { address: "Savassi, Belo Horizonte, MG", lat: -19.9386, lon: -43.9331 },
-    loc2: { address: "Centro, Belo Horizonte, MG", lat: -19.9191, lon: -43.9386 }
+    name: "SP: Santana vs. Itaquera",
+    loc1: { address: "Santana, São Paulo, SP", lat: -23.5042, lon: -46.6267 },
+    loc2: { address: "Itaquera, São Paulo, SP", lat: -23.5350, lon: -46.4560 }
   },
   {
-    name: "PR: Batel vs. Centro (Curitiba)",
-    loc1: { address: "Batel, Curitiba, PR", lat: -25.4431, lon: -49.2842 },
-    loc2: { address: "Centro, Curitiba, PR", lat: -25.4325, lon: -49.2711 }
+    name: "SP: Campinas vs. Santos",
+    loc1: { address: "Centro, Campinas, SP", lat: -22.9056, lon: -47.0608 },
+    loc2: { address: "Gonzaga, Santos, SP", lat: -23.9686, lon: -46.3340 }
   }
 ];
 

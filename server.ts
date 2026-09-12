@@ -115,19 +115,19 @@ app.get("/api/admin/data-quality", handleDataQuality);
 
 app.get("/api/dashboard/summary", async (req, res) => {
   try {
-    const byCategoryRaw = await db.execute(sql`SELECT category, SUM(value) as val FROM security_indicators GROUP BY category ORDER BY val DESC`);
-    const byStateRaw = await db.execute(sql`SELECT state_code, SUM(value) as val FROM security_indicators WHERE state_code IS NOT NULL GROUP BY state_code ORDER BY val DESC`);
-    const byTrendRaw = await db.execute(sql`SELECT period, SUM(value) as val FROM security_indicators GROUP BY period ORDER BY period ASC`);
+    const byCategoryRaw = await db.execute(sql`SELECT category, SUM(value) as val FROM security_indicators WHERE UPPER(source_id) = 'SSP-SP' GROUP BY category ORDER BY val DESC`);
+    const byStateRaw = await db.execute(sql`SELECT state_code, SUM(value) as val FROM security_indicators WHERE UPPER(source_id) = 'SSP-SP' AND state_code IS NOT NULL GROUP BY state_code ORDER BY val DESC`);
+    const byTrendRaw = await db.execute(sql`SELECT period, SUM(value) as val FROM security_indicators WHERE UPPER(source_id) = 'SSP-SP' GROUP BY period ORDER BY period ASC`);
     
     let total = 0;
-    const categoryData = byCategoryRaw.map((r: any) => { 
+    const categoryData = (byCategoryRaw as any[]).map((r: any) => { 
       const v = Number(r.val);
       total += v;
       return { name: r.category, value: v }; 
     });
     
-    const stateData = byStateRaw.map((r: any) => ({ name: r.state_code, value: Number(r.val) }));
-    const trendData = byTrendRaw.map((r: any) => ({ name: r.period, value: Number(r.val) }));
+    const stateData = (byStateRaw as any[]).map((r: any) => ({ name: r.state_code, value: Number(r.val) }));
+    const trendData = (byTrendRaw as any[]).map((r: any) => ({ name: r.period, value: Number(r.val) }));
     
     res.json({
       total,

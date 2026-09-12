@@ -7,16 +7,13 @@ export class Discovery {
     console.log(`[Discovery] Checking ${dataset.name} for updates...`);
     
     try {
-      // Mocked discovery logic per source
       if (dataset.sourceId === 'SSP-SP') {
         return this.checkSspSp(dataset);
       } else if (dataset.sourceId === 'SINESP') {
         return this.checkSinesp(dataset);
       } else {
-        // Generic fallback - simulated delay and randomly find updates if it hasn't been updated recently
-        if (!dataset.lastDiscoveredAt || (Date.now() - new Date(dataset.lastDiscoveredAt).getTime()) > 86400000) {
-           return { version: new Date().toISOString().substring(0, 7) }; // YYYY-MM
-        }
+        // Nenhuma simulação artificial: sem endpoint oficial implementado, retorna null
+        return null;
       }
       return null;
     } catch (e: any) {

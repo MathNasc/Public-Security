@@ -161,7 +161,7 @@ publicRouter.get('/v1/indicators', async (req, res) => {
     const { uf, category, period, source, sourceId } = req.query;
     
     const conditions = [];
-    const src = source || sourceId;
+    const src = source || sourceId || 'SSP-SP';
     if (src) conditions.push(eq(securityIndicators.sourceId, String(src).toUpperCase()));
     if (uf) conditions.push(eq(securityIndicators.stateCode, String(uf).toUpperCase()));
     if (category) conditions.push(eq(securityIndicators.category, String(category)));
@@ -193,7 +193,7 @@ publicRouter.get('/v1/occurrences', async (req, res) => {
     const parsedLimit = limit ? parseInt(String(limit), 10) : 50;
     const finalLimit = parsedLimit > 500 ? 500 : parsedLimit;
     
-    const conditions = [];
+    const conditions = [eq(securityOccurrences.sourceId, 'SSP-SP')];
     if (category) conditions.push(eq(securityOccurrences.category, String(category)));
     
     let isSpatial = false;

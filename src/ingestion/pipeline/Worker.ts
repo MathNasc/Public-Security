@@ -10,6 +10,8 @@ import path from 'path';
 import crypto from 'crypto';
 
 import { SspSpAdapter } from '../adapters/ssp/SspSpAdapter.js';
+import { SspSpHistoricalCatalogAdapter } from '../adapters/ssp/SspSpHistoricalCatalogAdapter.js';
+import { StreamingXlsxParser } from '../parsers/StreamingXlsxParser.js';
 import { SinespAdapter } from '../adapters/sinesp/SinespAdapter.js';
 import { IspRjAdapter } from '../adapters/isp-rj/IspRjAdapter.js';
 import { SspMgAdapter } from '../adapters/ssp-mg/SspMgAdapter.js';
@@ -142,11 +144,21 @@ export class IngestionWorker {
   }
 
   /**
-   * Helper para ler e extrair o cabeçalho original do arquivo CSV para validação de schema.
+   * Helper para ler e extrair o cabeçalho original do arquivo (CSV ou XLSX) para validação de schema.
    */
-  private async extractCsvHeaders(resolvedPath: string): Promise<string[]> {
+  private async extractHeaders(resolvedPath: string): Promise<string[]> {
     if (!fs.existsSync(resolvedPath)) return [];
     
+    if (resolvedPath.toLowerCase().endsWith('.xlsx')) {
+      try {
+        const result = await StreamingXlsxParser.streamWorksheet(resolvedPath, { maxRows: 1 });
+        return result.headers;
+      } catch (e: any) {
+        console.warn(`[Worker ${this.workerId}] Falha ao extrair headers XLSX: ${e.message}`);
+        return [];
+      }
+    }
+
     const fileStream = fs.createReadStream(resolvedPath, { encoding: 'utf8', highWaterMark: 8192 });
     for await (const chunk of fileStream) {
       fileStream.destroy();
@@ -215,7 +227,7 @@ export class IngestionWorker {
 
       // Step 11: Validação prévia de Schema
       if (typeof adapter.validateSchema === 'function') {
-        const headers = await this.extractCsvHeaders(resolvedPath);
+        const headers = await this.extractHeaders(resolvedPath);
         const schemaValidation = adapter.validateSchema(headers);
         if (!schemaValidation.valid) {
           throw new Error(`Quality Gate: Falha na validação de schema do dataset: ${schemaValidation.error}`);
@@ -226,22 +238,12 @@ export class IngestionWorker {
       // Carrega cache de municípios
       await this.loadMuniCache();
 
-      // Step 12: Parsing em Stream de alta performance
-      const readStream = fs.createReadStream(resolvedPath);
-      const parser = readStream.pipe(parse({
-        columns: true,
-        delimiter: [';', ','],
-        trim: true,
-        skip_empty_lines: true,
-        relax_quotes: true,
-        relax_column_count: true
-      }));
-
+      // Step 12: Parsing em Stream de alta performance (CSV ou XLSX Streaming)
       let checkpoint = 0;
       let batch: any[] = [];
       const seenKeys = new Set<string>();
 
-      for await (const row of parser) {
+      const handleRow = async (row: any) => {
         metrics.recordsRead++;
 
         try {
@@ -249,7 +251,7 @@ export class IngestionWorker {
           let results = adapter.parseRow(row);
           if (!results) {
             metrics.recordsInvalid++;
-            continue;
+            return;
           }
 
           if (!Array.isArray(results)) {
@@ -337,6 +339,26 @@ export class IngestionWorker {
           }
         } catch {
           metrics.recordsInvalid++;
+        }
+      };
+
+      if (resolvedPath.toLowerCase().endsWith('.xlsx')) {
+        await StreamingXlsxParser.streamWorksheet(resolvedPath, { batchSize: 1000 }, async (rowNum, row) => {
+          await handleRow(row);
+        });
+      } else {
+        const readStream = fs.createReadStream(resolvedPath);
+        const parser = readStream.pipe(parse({
+          columns: true,
+          delimiter: [';', ','],
+          trim: true,
+          skip_empty_lines: true,
+          relax_quotes: true,
+          relax_column_count: true
+        }));
+
+        for await (const row of parser) {
+          await handleRow(row);
         }
       }
 
@@ -466,6 +488,9 @@ export class IngestionWorker {
   private selectAdapter(sourceId: string): any {
     switch (sourceId) {
       case 'SSP-SP': return new SspSpAdapter();
+      case 'SSP-SP-HISTORICAL':
+      case 'SSP-SP-MDIP':
+      case 'SSP-SP-SP-DADOS': return new SspSpHistoricalCatalogAdapter();
       case 'SINESP': return new SinespAdapter();
       case 'ISP-RJ': return new IspRjAdapter();
       case 'SSP-MG':

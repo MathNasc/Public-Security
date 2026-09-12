@@ -175,10 +175,21 @@ export class SafetyAnalysisService {
       resolutionMethod: muni.resolutionMethod || 'nearest_centroid'
     };
 
-    // 2. Determinação da fonte primária (Regra de precedência e não-duplicação)
-    const primarySourceId = getPrimarySource(geoId.stateAcronym);
+    // 2. Determinação da fonte oficial exclusiva (SSP-SP)
+    if (geoId.stateAcronym !== 'SP') {
+      return this.emptyResult(
+        startDate,
+        endDate,
+        periodString,
+        radiusMeters,
+        geoId,
+        `Esta versão do Public Security opera exclusivamente com dados oficiais da Secretaria de Segurança Pública de São Paulo (SSP-SP). Não há registros oficiais disponíveis para este local fora do estado de São Paulo.`
+      );
+    }
 
-    // 3. Busca de ocorrências exatas e indicadores municipais
+    const primarySourceId = 'SSP-SP';
+
+    // 3. Busca de ocorrências exatas e indicadores municipais da SSP-SP
     let indicators: IndicatorValue[] = [];
     let exactOccurrences: any[] = [];
     let granularity: 'coordinate' | 'municipality' | 'state' | 'national' = 'municipality';
@@ -188,7 +199,7 @@ export class SafetyAnalysisService {
       type: 'none'
     };
 
-    // Tenta primeiro buscar ocorrências exatas por proximidade geográfica (raio)
+    // Tenta primeiro buscar ocorrências exatas por proximidade geográfica (raio) na base oficial SSP-SP
     exactOccurrences = await this.fetchExactOccurrences(validLat, validLon, radiusMeters, startDate, endDate, primarySourceId);
 
     if (exactOccurrences.length > 0) {
@@ -200,7 +211,7 @@ export class SafetyAnalysisService {
         type: 'none'
       };
     } else {
-      // Se não houver ocorrências pontuais com coordenadas no raio, busca indicadores municipais da fonte primária
+      // Se não houver ocorrências pontuais com coordenadas no raio, busca indicadores municipais oficiais da SSP-SP
       indicators = await this.aggregateIndicators(geoId, startDate, endDate, primarySourceId);
       
       if (indicators.length > 0) {
@@ -210,27 +221,13 @@ export class SafetyAnalysisService {
           used: true,
           type: 'municipal_aggregate',
           reason: `Microdados georreferenciados no raio de ${radiusMeters}m não foram disponibilizados pela fonte oficial (${primarySourceId}). Utilizando dados agregados oficiais no nível municipal.`,
-          disclosure: `Atenção: Os dados exibidos refletem os totais do município de ${geoId.municipalityName} - ${geoId.stateAcronym} e não a precisão pontual do raio de ${radiusMeters}m.`
+          disclosure: `Atenção: Os dados exibidos refletem os totais oficiais do município de ${geoId.municipalityName} - ${geoId.stateAcronym} e não a precisão pontual do raio de ${radiusMeters}m.`
         };
-      } else if (primarySourceId !== 'SINESP') {
-        // Se a fonte primária estadual não tiver dados, tenta o agregador nacional SINESP
-        const sinespIndicators = await this.aggregateIndicators(geoId, startDate, endDate, 'SINESP');
-        if (sinespIndicators.length > 0) {
-          indicators = sinespIndicators;
-          granularity = 'municipality';
-          spatialPrecision = 'aggregated';
-          fallbackInfo = {
-            used: true,
-            type: 'national_aggregate',
-            reason: `Fonte estadual ${primarySourceId} não possui dados publicados para este município/período. Utilizando base nacional SINESP como fallback oficial.`,
-            disclosure: `Atenção: Análise baseada na base nacional SINESP (Ministério da Justiça), com agregação municipal.`
-          };
-        }
       }
     }
 
-    // 4. Metadados e Score de Qualidade da Fonte
-    const effectiveSourceId = fallbackInfo.type === 'national_aggregate' ? 'SINESP' : primarySourceId;
+    // 4. Metadados e Score de Qualidade da Fonte SSP-SP
+    const effectiveSourceId = primarySourceId;
     const sourceMeta = await this.getSourceMetadata(effectiveSourceId);
 
     // REGRA OBRIGATÓRIA: Ausência de dados NUNCA pode virar score zero e nem ser interpretada como ausência de crimes
@@ -241,7 +238,7 @@ export class SafetyAnalysisService {
         periodString,
         radiusMeters,
         geoId,
-        `Sem registros criminais oficiais encontrados para ${geoId.municipalityName} - ${geoId.stateAcronym} no período selecionado.`
+        `Sem registros criminais oficiais encontrados na base da SSP-SP para ${geoId.municipalityName} - ${geoId.stateAcronym} no período selecionado.`
       );
     }
 
@@ -364,8 +361,8 @@ export class SafetyAnalysisService {
       limitations,
       sources: [{
         id: effectiveSourceId,
-        name: sourceMeta?.name || effectiveSourceId,
-        provider: effectiveSourceId === 'SINESP' ? 'Ministério da Justiça' : geoId.stateAcronym,
+        name: 'Secretaria de Segurança Pública de São Paulo (SSP-SP)',
+        provider: 'Governo do Estado de São Paulo (SSP-SP)',
         updated_at: sourceMeta?.lastImportDate?.toISOString() || new Date().toISOString(),
         quality_score: qualityScore,
         isFallback: fallbackInfo.used
@@ -373,7 +370,7 @@ export class SafetyAnalysisService {
       indicators,
       exactOccurrences,
       trend: trendData,
-      methodology: `${TAXONOMY_VERSION}; Metodologia de Ponderação Gravimétrica por Severidade Penal e Taxa Territorial/Demográfica. Precedência de fontes oficiais estaduais sobre agregadores nacionais.`,
+      methodology: `${TAXONOMY_VERSION}; Metodologia de Ponderação Gravimétrica por Severidade Penal e Taxa Territorial/Demográfica baseada exclusivamente em dados oficiais da SSP-SP.`,
       dataAbsenceNotice: 'Ausência de registros oficiais reflete falta de cobertura ou dados não publicados pelo órgão responsável e NÃO deve ser interpretada como inexistência de crimes.'
     };
   }

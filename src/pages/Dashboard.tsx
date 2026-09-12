@@ -53,8 +53,8 @@ export function Dashboard() {
       <div className="px-4 py-12 max-w-5xl mx-auto">
         <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-12 text-center">
           <Shield className="w-12 h-12 text-slate-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-slate-200 mb-2">Sem Dados Nacionais</h2>
-          <p className="text-slate-400 max-w-md mx-auto">Não há indicadores criminais agregados no banco de dados. Vá ao painel de Admin e execute a importação do SINESP.</p>
+          <h2 className="text-xl font-bold text-slate-200 mb-2">Sem Dados Oficiais SSP-SP</h2>
+          <p className="text-slate-400 max-w-md mx-auto">Não há indicadores criminais da SSP-SP carregados no banco de dados. Os dados são sincronizados diretamente das publicações oficiais da SSP-SP.</p>
         </div>
       </div>
     );
@@ -68,10 +68,10 @@ export function Dashboard() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-2">
             <BarChart2 className="w-8 h-8 text-amber-500" />
-            Dashboard Nacional (SINESP)
+            Dashboard Oficial (SSP-SP)
           </h1>
           <p className="text-slate-400 mt-2 max-w-3xl">
-            Este painel exibe uma visão consolidada de todo o banco de dados oficial importado do Sistema Nacional de Informações de Segurança Pública (SINESP). Ele serve como um <strong className="text-slate-300">panorama macroscópico</strong> para entender tendências gerais de criminalidade, comparar a situação entre os estados brasileiros e identificar os tipos de crimes mais incidentes em nível nacional ou regional ao longo do tempo.
+            Este painel exibe uma visão consolidada de dados oficiais extraídos diretamente das estatísticas publicadas pela Secretaria de Segurança Pública de São Paulo (SSP-SP). Ele serve como um <strong className="text-slate-300">panorama oficial</strong> para entender tendências de criminalidade e distribuição de categorias registradas no estado.
           </p>
         </div>
       </div>
@@ -80,7 +80,7 @@ export function Dashboard() {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
           <div className="flex items-center gap-3 text-slate-400 mb-2">
             <Shield className="w-5 h-5 text-amber-500" />
-            <h3 className="font-semibold text-sm uppercase tracking-wider">Total Registros</h3>
+            <h3 className="font-semibold text-sm uppercase tracking-wider">Total Ocorrências Oficiais</h3>
           </div>
           <p className="text-4xl font-bold text-slate-100">{(data?.total ?? 0).toLocaleString('pt-BR')}</p>
         </motion.div>
@@ -88,19 +88,19 @@ export function Dashboard() {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
           <div className="flex items-center gap-3 text-slate-400 mb-2">
             <Activity className="w-5 h-5 text-red-400" />
-            <h3 className="font-semibold text-sm uppercase tracking-wider">Principal Crime</h3>
+            <h3 className="font-semibold text-sm uppercase tracking-wider">Principal Categoria</h3>
           </div>
           <p className="text-xl font-bold text-slate-100 truncate">{data?.byCategory?.[0]?.name || "-"}</p>
-          <p className="text-sm text-slate-500 mt-1">{(data?.byCategory?.[0]?.value ?? 0).toLocaleString('pt-BR')} ocorrências</p>
+          <p className="text-sm text-slate-500 mt-1">{(data?.byCategory?.[0]?.value ?? 0).toLocaleString('pt-BR')} registros oficiais</p>
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
           <div className="flex items-center gap-3 text-slate-400 mb-2">
             <Map className="w-5 h-5 text-blue-400" />
-            <h3 className="font-semibold text-sm uppercase tracking-wider">Estado Mais Afetado</h3>
+            <h3 className="font-semibold text-sm uppercase tracking-wider">Fonte & Abrangência</h3>
           </div>
-          <p className="text-xl font-bold text-slate-100">UF: {data?.byState?.[0]?.name || "-"}</p>
-          <p className="text-sm text-slate-500 mt-1">{(data?.byState?.[0]?.value ?? 0).toLocaleString('pt-BR')} ocorrências</p>
+          <p className="text-xl font-bold text-slate-100">SSP-SP (São Paulo)</p>
+          <p className="text-sm text-slate-500 mt-1">Dados Oficiais do Governo de SP</p>
         </motion.div>
       </div>
 
@@ -124,10 +124,10 @@ export function Dashboard() {
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-          <h3 className="font-semibold text-lg text-white mb-6">Tendência Temporal</h3>
+          <h3 className="font-semibold text-lg text-white mb-6">Tendência Mensal (SSP-SP)</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data.trend}>
+              <LineChart data={data.byTrend || data.trend || []}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                 <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />

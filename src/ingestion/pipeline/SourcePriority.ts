@@ -22,7 +22,7 @@ export function getPrimarySource(state: StateCode, category?: DatasetCategory): 
     'GO': 'SSP-GO',
   };
 
-  return statePreferredSources[state] || 'SINESP'; // Fallback to SINESP for unintegrated states
+  return statePreferredSources[state] || 'SSP-SP';
 }
 
 /**
