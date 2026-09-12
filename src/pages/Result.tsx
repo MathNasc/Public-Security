@@ -28,7 +28,7 @@ const getCategoryDetails = (category: string, sourceCategory?: string | null) =>
   const normCat = (category || '').toLowerCase();
   const normSrc = (sourceCategory || '').toUpperCase();
 
-  if (normCat.includes('police_intervention') || normSrc.includes('INTERVENCAO POLICIAL') || normSrc.includes('MDIP')) {
+  if (normCat.includes('police_intervention') || normSrc.includes('INTERVENCAO') || normSrc.includes('INTERVENÇÃO') || normSrc.includes('MDIP')) {
     return {
       label: 'MDIP (Intervenção Policial)',
       color: '#a855f7',
@@ -36,12 +36,36 @@ const getCategoryDetails = (category: string, sourceCategory?: string | null) =>
       badgeClass: 'bg-purple-500'
     };
   }
-  if (normCat === 'homicide' || normSrc.includes('HOMICIDIO') || normSrc.includes('LATROCINIO')) {
+  if (normCat === 'homicide' || normSrc.includes('HOMICIDIO') || normSrc.includes('HOMICÍDIO') || normSrc.includes('LATROCINIO') || normSrc.includes('LATROCÍNIO')) {
     return {
       label: 'Homicídio / Latrocínio',
       color: '#ec4899',
       bgClass: 'bg-pink-950/60 text-pink-300 border-pink-800',
       badgeClass: 'bg-pink-500'
+    };
+  }
+  if (normCat === 'vehicle_robbery' || (normSrc.includes('ROUBO') && normSrc.includes('VE'))) {
+    return {
+      label: 'Roubo de Veículo',
+      color: '#0284c7',
+      bgClass: 'bg-sky-950/60 text-sky-300 border-sky-800',
+      badgeClass: 'bg-sky-500'
+    };
+  }
+  if (normCat === 'vehicle_theft' || (normSrc.includes('FURTO') && normSrc.includes('VE')) || normSrc.includes('VEICULO') || normSrc.includes('VEÍCULO')) {
+    return {
+      label: 'Furto de Veículo',
+      color: '#3b82f6',
+      bgClass: 'bg-blue-950/60 text-blue-300 border-blue-800',
+      badgeClass: 'bg-blue-500'
+    };
+  }
+  if (normCat === 'cargo_theft' || normSrc.includes('CARGA')) {
+    return {
+      label: 'Roubo de Carga',
+      color: '#6366f1',
+      bgClass: 'bg-indigo-950/60 text-indigo-300 border-indigo-800',
+      badgeClass: 'bg-indigo-500'
     };
   }
   if (normCat === 'robbery' || normSrc.includes('ROUBO')) {
@@ -60,12 +84,28 @@ const getCategoryDetails = (category: string, sourceCategory?: string | null) =>
       badgeClass: 'bg-amber-500'
     };
   }
-  if (normCat === 'vehicle_theft' || normSrc.includes('VEICULO')) {
+  if (normCat === 'bodily_harm' || normSrc.includes('LESAO') || normSrc.includes('LESÃO')) {
     return {
-      label: 'Furto/Roubo de Veículo',
-      color: '#3b82f6',
-      bgClass: 'bg-blue-950/60 text-blue-300 border-blue-800',
-      badgeClass: 'bg-blue-500'
+      label: 'Lesão Corporal',
+      color: '#f97316',
+      bgClass: 'bg-orange-950/60 text-orange-300 border-orange-800',
+      badgeClass: 'bg-orange-500'
+    };
+  }
+  if (normCat === 'drug_related' || normSrc.includes('DROGA') || normSrc.includes('TRAFICO') || normSrc.includes('TRÁFICO') || normSrc.includes('ENTORPECENTE')) {
+    return {
+      label: 'Entorpecentes / Drogas',
+      color: '#10b981',
+      bgClass: 'bg-emerald-950/60 text-emerald-300 border-emerald-800',
+      badgeClass: 'bg-emerald-500'
+    };
+  }
+  if (normCat === 'sexual_crime' || normSrc.includes('ESTUPRO') || normSrc.includes('SEXUAL')) {
+    return {
+      label: 'Crime Sexual',
+      color: '#d946ef',
+      bgClass: 'bg-fuchsia-950/60 text-fuchsia-300 border-fuchsia-800',
+      badgeClass: 'bg-fuchsia-500'
     };
   }
   return {
@@ -174,10 +214,23 @@ export function Result() {
     return data.exactOccurrences.filter((occ: any) => {
       // Filtro de categoria
       if (selectedCategoryFilter !== "all") {
-        if (selectedCategoryFilter === "robbery" && occ.category !== "robbery" && !occ.sourceCategory?.toUpperCase().includes("ROUBO")) return false;
-        if (selectedCategoryFilter === "theft" && occ.category !== "theft" && !occ.sourceCategory?.toUpperCase().includes("FURTO")) return false;
-        if (selectedCategoryFilter === "vehicle" && occ.category !== "vehicle_theft" && !occ.sourceCategory?.toUpperCase().includes("VEICULO")) return false;
-        if (selectedCategoryFilter === "violent" && !["homicide", "police_intervention_death"].includes(occ.category) && !occ.sourceCategory?.toUpperCase().includes("HOMICIDIO") && !occ.sourceCategory?.toUpperCase().includes("INTERVENCAO")) return false;
+        const cat = (occ.category || '').toLowerCase();
+        const src = (occ.sourceCategory || '').toUpperCase();
+
+        if (selectedCategoryFilter === "robbery") {
+          if (cat !== "robbery" && !src.includes("ROUBO")) return false;
+        } else if (selectedCategoryFilter === "theft") {
+          if (cat !== "theft" && !src.includes("FURTO")) return false;
+        } else if (selectedCategoryFilter === "vehicle") {
+          if (cat !== "vehicle_theft" && cat !== "vehicle_robbery" && !src.includes("VEICULO") && !src.includes("VEÍCULO") && !src.includes("AUTO")) return false;
+        } else if (selectedCategoryFilter === "violent") {
+          const isViolent = ["homicide", "bodily_harm", "police_intervention_death"].includes(cat) ||
+            src.includes("HOMICIDIO") || src.includes("HOMICÍDIO") || src.includes("LATROCINIO") || src.includes("LATROCÍNIO") ||
+            src.includes("INTERVENCAO") || src.includes("INTERVENÇÃO") || src.includes("MDIP") || src.includes("LESAO") || src.includes("LESÃO");
+          if (!isViolent) return false;
+        } else if (selectedCategoryFilter === "drugs") {
+          if (cat !== "drug_related" && !src.includes("DROGA") && !src.includes("TRAFICO") && !src.includes("TRÁFICO") && !src.includes("ENTORPECENTE")) return false;
+        }
       }
 
       // Filtro de busca textual
@@ -532,6 +585,17 @@ export function Result() {
               >
                 <span className="w-2 h-2 rounded-full bg-blue-400"></span>
                 Veículos ({data.statistics?.breakdown?.vehicles || 0})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedCategoryFilter("violent")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1",
+                  selectedCategoryFilter === "violent" ? "bg-pink-600 text-white font-bold" : "bg-slate-800 text-pink-300 hover:bg-slate-700"
+                )}
+              >
+                <span className="w-2 h-2 rounded-full bg-pink-400"></span>
+                Violentos
               </button>
             </div>
           </div>
