@@ -1,8 +1,12 @@
 import React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { MapContainer, TileLayer, Circle, CircleMarker, Tooltip } from "react-leaflet";
-import { ShieldCheck, ShieldAlert, Shield, AlertTriangle, MapPin, Activity, Search, Database, GitCompare, BarChart3, Info, AlertCircle, FileText } from "lucide-react";
+import { MapContainer, TileLayer, Circle, CircleMarker, Tooltip, Popup } from "react-leaflet";
+import { 
+  ShieldCheck, ShieldAlert, Shield, AlertTriangle, MapPin, Activity, Search, Database, 
+  GitCompare, BarChart3, Info, AlertCircle, FileText, Layers, Crosshair, Copy, Check,
+  Calendar, Clock, Building2, Car, ExternalLink, ListFilter
+} from "lucide-react";
 import * as motion from "motion/react-client";
 import { cn } from '../lib/utils.js';
 import { MapUpdater } from '../components/MapUtils.js';
@@ -18,6 +22,58 @@ const InfoTooltip = ({ text }: { text: string }) => {
       </div>
     </div>
   );
+};
+
+const getCategoryDetails = (category: string, sourceCategory?: string | null) => {
+  const normCat = (category || '').toLowerCase();
+  const normSrc = (sourceCategory || '').toUpperCase();
+
+  if (normCat.includes('police_intervention') || normSrc.includes('INTERVENCAO POLICIAL') || normSrc.includes('MDIP')) {
+    return {
+      label: 'MDIP (Intervenção Policial)',
+      color: '#a855f7',
+      bgClass: 'bg-purple-950/60 text-purple-300 border-purple-800',
+      badgeClass: 'bg-purple-500'
+    };
+  }
+  if (normCat === 'homicide' || normSrc.includes('HOMICIDIO') || normSrc.includes('LATROCINIO')) {
+    return {
+      label: 'Homicídio / Latrocínio',
+      color: '#ec4899',
+      bgClass: 'bg-pink-950/60 text-pink-300 border-pink-800',
+      badgeClass: 'bg-pink-500'
+    };
+  }
+  if (normCat === 'robbery' || normSrc.includes('ROUBO')) {
+    return {
+      label: 'Roubo',
+      color: '#ef4444',
+      bgClass: 'bg-red-950/60 text-red-300 border-red-800',
+      badgeClass: 'bg-red-500'
+    };
+  }
+  if (normCat === 'theft' || normSrc.includes('FURTO')) {
+    return {
+      label: 'Furto',
+      color: '#f59e0b',
+      bgClass: 'bg-amber-950/60 text-amber-300 border-amber-800',
+      badgeClass: 'bg-amber-500'
+    };
+  }
+  if (normCat === 'vehicle_theft' || normSrc.includes('VEICULO')) {
+    return {
+      label: 'Furto/Roubo de Veículo',
+      color: '#3b82f6',
+      bgClass: 'bg-blue-950/60 text-blue-300 border-blue-800',
+      badgeClass: 'bg-blue-500'
+    };
+  }
+  return {
+    label: sourceCategory || 'Outras Ocorrências',
+    color: '#94a3b8',
+    bgClass: 'bg-slate-800/60 text-slate-300 border-slate-700',
+    badgeClass: 'bg-slate-500'
+  };
 };
 
 export function Result() {
@@ -37,6 +93,12 @@ export function Result() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [isComparing, setIsComparing] = useState(false);
+
+  // Estados de navegação no mapa e filtro de microdados
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
+  const [occurrenceSearch, setOccurrenceSearch] = useState<string>("");
+  const [activePin, setActivePin] = useState<any>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const handleFilterChange = (key: string, value: string) => {
     const newParams = new URLSearchParams(searchParams);
@@ -98,6 +160,40 @@ export function Result() {
       navigate(`/resultado?lat=${item.latitude}&lon=${item.longitude}&address=${encodeURIComponent(item.formattedAddress)}`);
     }
   };
+
+  const copyCoordinates = (cLat: number, cLon: number, id: string) => {
+    navigator.clipboard.writeText(`${cLat.toFixed(6)}, ${cLon.toFixed(6)}`);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  // Ocorrências filtradas para o mapa e tabela
+  const filteredOccurrences = useMemo(() => {
+    if (!data?.exactOccurrences || !Array.isArray(data.exactOccurrences)) return [];
+    
+    return data.exactOccurrences.filter((occ: any) => {
+      // Filtro de categoria
+      if (selectedCategoryFilter !== "all") {
+        if (selectedCategoryFilter === "robbery" && occ.category !== "robbery" && !occ.sourceCategory?.toUpperCase().includes("ROUBO")) return false;
+        if (selectedCategoryFilter === "theft" && occ.category !== "theft" && !occ.sourceCategory?.toUpperCase().includes("FURTO")) return false;
+        if (selectedCategoryFilter === "vehicle" && occ.category !== "vehicle_theft" && !occ.sourceCategory?.toUpperCase().includes("VEICULO")) return false;
+        if (selectedCategoryFilter === "violent" && !["homicide", "police_intervention_death"].includes(occ.category) && !occ.sourceCategory?.toUpperCase().includes("HOMICIDIO") && !occ.sourceCategory?.toUpperCase().includes("INTERVENCAO")) return false;
+      }
+
+      // Filtro de busca textual
+      if (occurrenceSearch.trim()) {
+        const term = occurrenceSearch.toLowerCase();
+        const matchBo = occ.boNumber?.toLowerCase().includes(term);
+        const matchAddr = occ.address?.toLowerCase().includes(term);
+        const matchBairro = occ.bairro?.toLowerCase().includes(term);
+        const matchNat = (occ.sourceCategory || occ.subcategory || '').toLowerCase().includes(term);
+        const matchDp = occ.delegacia?.toLowerCase().includes(term);
+        if (!matchBo && !matchAddr && !matchBairro && !matchNat && !matchDp) return false;
+      }
+
+      return true;
+    });
+  }, [data?.exactOccurrences, selectedCategoryFilter, occurrenceSearch]);
 
   if (loading) {
     return (
@@ -376,51 +472,248 @@ export function Result() {
           </div>
         </motion.div>
 
-        {/* Mapa */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="md:col-span-2 rounded-2xl border border-slate-800 overflow-hidden relative min-h-[300px] z-0">
-          <div className="absolute top-4 left-4 z-[1000] bg-slate-900/90 backdrop-blur border border-slate-700 p-2 px-3 rounded-lg shadow-lg pointer-events-none">
-             <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-0.5">Área Analisada</span>
-             <span className="text-sm font-bold text-amber-500">
-               {data.granularity === 'coordinate' ? `Raio de ${radius}m (Pontual)` : `${geo?.municipalityName || 'Município'} (Agregado Municipal)`}
-             </span>
+        {/* Mapa Interativo com Pins Georreferenciados da SSP-SP */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="md:col-span-2 rounded-2xl border border-slate-800 overflow-hidden relative flex flex-col min-h-[460px] bg-slate-950">
+          {/* Barra Superior do Mapa com Filtros de Categoria e Contadores */}
+          <div className="bg-slate-900/90 backdrop-blur border-b border-slate-800 p-3 flex flex-wrap items-center justify-between gap-2 z-10">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-amber-400" />
+                Mapa de Ocorrências (SSP-SP)
+              </span>
+              {data.exactOccurrences?.length > 0 && (
+                <span className="bg-amber-500/10 text-amber-400 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-amber-500/20">
+                  {filteredOccurrences.length} de {data.exactOccurrences.length} pins
+                </span>
+              )}
+            </div>
+
+            {/* Filtro Rápido de Categorias no Mapa */}
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setSelectedCategoryFilter("all")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors",
+                  selectedCategoryFilter === "all" ? "bg-amber-500 text-slate-950 font-bold" : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                )}
+              >
+                Todos ({data.exactOccurrences?.length || 0})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedCategoryFilter("robbery")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1",
+                  selectedCategoryFilter === "robbery" ? "bg-red-500 text-white font-bold" : "bg-slate-800 text-red-300 hover:bg-slate-700"
+                )}
+              >
+                <span className="w-2 h-2 rounded-full bg-red-400"></span>
+                Roubos ({data.statistics?.breakdown?.robberies || 0})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedCategoryFilter("theft")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1",
+                  selectedCategoryFilter === "theft" ? "bg-amber-500 text-slate-950 font-bold" : "bg-slate-800 text-amber-300 hover:bg-slate-700"
+                )}
+              >
+                <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                Furtos ({data.statistics?.breakdown?.thefts || 0})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedCategoryFilter("vehicle")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1",
+                  selectedCategoryFilter === "vehicle" ? "bg-blue-500 text-white font-bold" : "bg-slate-800 text-blue-300 hover:bg-slate-700"
+                )}
+              >
+                <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                Veículos ({data.statistics?.breakdown?.vehicles || 0})
+              </button>
+            </div>
           </div>
-          <MapContainer
-            center={center}
-            zoom={data.granularity === 'coordinate' ? 14 : 11}
-            style={{ height: "100%", width: "100%", zIndex: 0 }}
-            zoomControl={false}
-          >
-            <TileLayer
-              attribution={(import.meta as any).env.VITE_MAPBOX_TOKEN ? '© <a href="https://www.mapbox.com/about/maps/">Mapbox</a>' : 'Powered by <a href="https://www.esri.com/">Esri</a>'}
-              url={(import.meta as any).env.VITE_MAPBOX_TOKEN ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/256/{z}/{x}/{y}@2x?access_token=${(import.meta as any).env.VITE_MAPBOX_TOKEN}` : 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'}
-            />
-            {data.granularity === 'coordinate' && (
-              <Circle center={center} pathOptions={{ color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 0.1 }} radius={parseFloat(radius)} />
-            )}
-            {data.exactOccurrences?.map((occ: any, index: number) => {
-              const color = occ.category === 'robbery' ? '#f87171' : 
-                            occ.category === 'theft' ? '#fbbf24' : 
-                            occ.category === 'vehicle_theft' ? '#60a5fa' : '#94a3b8';
-              return (
-                <CircleMarker 
-                  key={index}
-                  center={[occ.latitude, occ.longitude]}
-                  radius={5}
-                  pathOptions={{ color: '#1e293b', fillColor: color, fillOpacity: 0.9, weight: 1.5 }}
-                >
-                  <Tooltip direction="top" offset={[0, -5]} opacity={1}>
-                    <div className="font-semibold text-xs text-slate-800">
-                      {occ.category === 'robbery' ? 'Roubo' : occ.category === 'theft' ? 'Furto' : occ.category === 'vehicle_theft' ? 'Furto/Roubo de Veículo' : 'Outros'}
-                    </div>
-                    <div className="text-[10px] text-slate-500">
-                      {new Date(occ.date).toLocaleDateString('pt-BR')}
-                    </div>
-                  </Tooltip>
-                </CircleMarker>
-              );
-            })}
-            <MapUpdater center={center} zoom={data.granularity === 'coordinate' ? 14 : 11} />
-          </MapContainer>
+
+          {/* Container do Mapa Leaflet */}
+          <div className="relative flex-1 min-h-[380px] z-0">
+            <MapContainer
+              center={center}
+              zoom={data.granularity === 'coordinate' ? 15 : 12}
+              style={{ height: "100%", width: "100%", zIndex: 0 }}
+              zoomControl={false}
+            >
+              <TileLayer
+                attribution={(import.meta as any).env.VITE_MAPBOX_TOKEN ? '© <a href="https://www.mapbox.com/about/maps/">Mapbox</a>' : 'Powered by <a href="https://www.esri.com/">Esri</a>'}
+                url={(import.meta as any).env.VITE_MAPBOX_TOKEN ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/256/{z}/{x}/{y}@2x?access_token=${(import.meta as any).env.VITE_MAPBOX_TOKEN}` : 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'}
+              />
+
+              {/* Raio de Abrangência */}
+              {data.granularity === 'coordinate' && (
+                <Circle 
+                  center={center} 
+                  pathOptions={{ color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 0.08, weight: 1.5, dashArray: '4, 6' }} 
+                  radius={parseFloat(radius)} 
+                />
+              )}
+
+              {/* Marcador Central do Endereço Consultado */}
+              <CircleMarker
+                center={center}
+                radius={8}
+                pathOptions={{ color: '#ffffff', fillColor: '#3b82f6', fillOpacity: 1, weight: 3 }}
+              >
+                <Tooltip direction="top" offset={[0, -8]} opacity={1}>
+                  <div className="font-bold text-xs text-slate-900">
+                    📍 Endereço Consultado
+                  </div>
+                  <div className="text-[10px] text-slate-600 max-w-xs truncate">
+                    {address}
+                  </div>
+                </Tooltip>
+              </CircleMarker>
+
+              {/* Pins de Ocorrências Reais com Coordenadas Exatas (SSP-SP) */}
+              {filteredOccurrences.map((occ: any, index: number) => {
+                const details = getCategoryDetails(occ.category, occ.sourceCategory);
+                const isSelected = activePin?.id === occ.id || (activePin?.latitude === occ.latitude && activePin?.longitude === occ.longitude);
+
+                return (
+                  <CircleMarker 
+                    key={occ.id || index}
+                    center={[occ.latitude, occ.longitude]}
+                    radius={isSelected ? 9 : 6}
+                    pathOptions={{ 
+                      color: isSelected ? '#ffffff' : '#0f172a', 
+                      fillColor: details.color, 
+                      fillOpacity: 0.95, 
+                      weight: isSelected ? 3 : 1.5 
+                    }}
+                    eventHandlers={{
+                      click: () => setActivePin(occ)
+                    }}
+                  >
+                    <Tooltip direction="top" offset={[0, -6]} opacity={1}>
+                      <div className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: details.color }}></span>
+                        {details.label}
+                      </div>
+                      {occ.sourceCategory && occ.sourceCategory !== details.label && (
+                        <div className="text-[10px] text-slate-700 font-medium">
+                          {occ.sourceCategory}
+                        </div>
+                      )}
+                      <div className="text-[10px] text-slate-500 mt-0.5">
+                        {occ.date ? new Date(occ.date).toLocaleDateString('pt-BR') : ''} {occ.time ? `• ${occ.time}` : ''}
+                      </div>
+                      {occ.boNumber && (
+                        <div className="text-[9px] text-slate-400 font-mono">
+                          BO: {occ.boNumber}{occ.boYear ? `/${occ.boYear}` : ''}
+                        </div>
+                      )}
+                    </Tooltip>
+
+                    <Popup className="custom-popup">
+                      <div className="p-1 max-w-xs text-slate-900">
+                        <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-1.5 mb-2">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded text-white" style={{ backgroundColor: details.color }}>
+                            {details.label}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            SSP-SP
+                          </span>
+                        </div>
+
+                        {occ.sourceCategory && (
+                          <div className="text-xs font-semibold text-slate-800 mb-1">
+                            {occ.sourceCategory}
+                          </div>
+                        )}
+
+                        {occ.subcategory && (
+                          <div className="text-[11px] text-slate-600 mb-2 italic">
+                            Rubrica: {occ.subcategory}
+                          </div>
+                        )}
+
+                        <div className="space-y-1 text-[11px] text-slate-600 border-t border-slate-100 pt-1.5">
+                          {occ.boNumber && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-400 font-medium">Boletim (BO):</span>
+                              <span className="font-mono font-bold text-slate-800">{occ.boNumber}{occ.boYear ? `/${occ.boYear}` : ''}</span>
+                            </div>
+                          )}
+
+                          {occ.date && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-400 font-medium">Data do Fato:</span>
+                              <span className="text-slate-800">{new Date(occ.date).toLocaleDateString('pt-BR')} {occ.time ? `às ${occ.time}` : ''}</span>
+                            </div>
+                          )}
+
+                          {occ.address && (
+                            <div className="pt-1">
+                              <span className="text-slate-400 font-medium block">Local:</span>
+                              <span className="text-slate-800 leading-tight block">{occ.address}</span>
+                            </div>
+                          )}
+
+                          {occ.delegacia && (
+                            <div className="pt-0.5">
+                              <span className="text-slate-400 font-medium block">Delegacia (DP):</span>
+                              <span className="text-slate-700 leading-tight block">{occ.delegacia}</span>
+                            </div>
+                          )}
+
+                          <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-100 mt-2">
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              {occ.latitude.toFixed(5)}, {occ.longitude.toFixed(5)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => copyCoordinates(occ.latitude, occ.longitude, occ.id || `${occ.latitude}`)}
+                              className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-medium transition-colors flex items-center gap-1"
+                            >
+                              {copiedId === (occ.id || `${occ.latitude}`) ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                              Copiar GPS
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </Popup>
+                  </CircleMarker>
+                );
+              })}
+
+              <MapUpdater center={activePin ? [activePin.latitude, activePin.longitude] : center} zoom={data.granularity === 'coordinate' ? 15 : 12} />
+            </MapContainer>
+          </div>
+
+          {/* Legenda do Mapa */}
+          <div className="bg-slate-900/95 border-t border-slate-800 p-2.5 px-4 flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Legenda:</span>
+              <span className="flex items-center gap-1.5 text-[11px]">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span> Roubo
+              </span>
+              <span className="flex items-center gap-1.5 text-[11px]">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Furto
+              </span>
+              <span className="flex items-center gap-1.5 text-[11px]">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Veículo
+              </span>
+              <span className="flex items-center gap-1.5 text-[11px]">
+                <span className="w-2.5 h-2.5 rounded-full bg-pink-500"></span> Homicídio / MDIP
+              </span>
+              <span className="flex items-center gap-1.5 text-[11px]">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-400 border border-white"></span> Local Consultado
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-500">
+              Clique em qualquer pin para inspecionar Boletim e coordenadas
+            </div>
+          </div>
         </motion.div>
       </div>
 
@@ -481,6 +774,115 @@ export function Result() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Tabela / Lista Interativa de Ocorrências Pontuais com Coordenadas */}
+      {(data.exactOccurrences?.length || 0) > 0 && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-slate-900/40 border border-slate-800 rounded-2xl p-6 space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <ListFilter className="w-5 h-5 text-amber-500" />
+                Microdados Georreferenciados no Raio ({filteredOccurrences.length} de {data.exactOccurrences.length})
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Ocorrências oficiais da SSP-SP com latitude e longitude exatas extraídas diretamente dos Boletins de Ocorrência.
+              </p>
+            </div>
+
+            {/* Input de filtro textual */}
+            <div className="relative w-full md:w-72">
+              <input
+                type="text"
+                placeholder="Filtrar por BO, rua, bairro, delito..."
+                value={occurrenceSearch}
+                onChange={(e) => setOccurrenceSearch(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+              <Search className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2" />
+            </div>
+          </div>
+
+          {/* Grid de Cards de Ocorrências */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[420px] overflow-y-auto pr-1">
+            {filteredOccurrences.map((occ: any, idx: number) => {
+              const details = getCategoryDetails(occ.category, occ.sourceCategory);
+              const isSelected = activePin?.id === occ.id || (activePin?.latitude === occ.latitude && activePin?.longitude === occ.longitude);
+
+              return (
+                <div
+                  key={occ.id || idx}
+                  onClick={() => setActivePin(occ)}
+                  className={cn(
+                    "p-3.5 rounded-xl border text-xs transition-all cursor-pointer flex flex-col justify-between space-y-2",
+                    isSelected 
+                      ? "bg-slate-800/90 border-amber-500 shadow-lg ring-1 ring-amber-500/50" 
+                      : "bg-slate-900/60 border-slate-800 hover:bg-slate-800/60 hover:border-slate-700"
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded border", details.bgClass)}>
+                      {details.label}
+                    </span>
+                    {occ.boNumber && (
+                      <span className="font-mono text-[10px] text-slate-400 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">
+                        BO: {occ.boNumber}{occ.boYear ? `/${occ.boYear}` : ''}
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="font-semibold text-slate-200 leading-snug truncate" title={occ.sourceCategory}>
+                      {occ.sourceCategory || details.label}
+                    </div>
+                    {occ.subcategory && (
+                      <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                        {occ.subcategory}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1 text-[11px] text-slate-400 border-t border-slate-800/80 pt-2">
+                    {occ.address && (
+                      <div className="flex items-start gap-1.5 truncate">
+                        <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
+                        <span className="truncate">{occ.address}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between text-[10px] text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-slate-500" />
+                        {occ.date ? new Date(occ.date).toLocaleDateString('pt-BR') : 'Data n/d'}
+                      </span>
+                      {occ.time && (
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-slate-500" />
+                          {occ.time}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-800/50 text-[10px]">
+                    <span className="text-slate-500 font-mono">
+                      {occ.latitude.toFixed(4)}, {occ.longitude.toFixed(4)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActivePin(occ);
+                      }}
+                      className="text-amber-400 hover:text-amber-300 font-medium"
+                    >
+                      {isSelected ? "Focado no Mapa ✓" : "Ver no Mapa →"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
       )}
 
       {/* Comparação com período anterior & Resumo com IA */}

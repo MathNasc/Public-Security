@@ -314,6 +314,110 @@ app.get("/api/analysis", publicApiLimiter, async (req, res) => {
   }
 });
 
+// Endpoint dedicado para visualização espacial pontual de ocorrências SSP-SP no mapa
+app.get("/api/map/occurrences", publicApiLimiter, async (req, res) => {
+  try {
+    const { lat, lon, radius = "2000", minLat, minLon, maxLat, maxLon, category, limit = "300" } = req.query;
+    const maxLimit = Math.min(1000, Math.max(1, parseInt(String(limit), 10) || 300));
+    const canonicalSource = 'SSP-SP';
+
+    let candidates: any[] = [];
+
+    if (minLat && minLon && maxLat && maxLon) {
+      const bMinLat = parseFloat(String(minLat));
+      const bMinLon = parseFloat(String(minLon));
+      const bMaxLat = parseFloat(String(maxLat));
+      const bMaxLon = parseFloat(String(maxLon));
+
+      candidates = await db.execute(sql`
+        SELECT id, category, subcategory, source_category, source_record_id, municipality_name, original_address, source_data,
+               latitude, longitude, occurred_at, year, month
+        FROM ${securityOccurrences}
+        WHERE UPPER(source_id) = ${canonicalSource}
+          AND latitude BETWEEN ${bMinLat} AND ${bMaxLat}
+          AND longitude BETWEEN ${bMinLon} AND ${bMaxLon}
+          ${category ? sql`AND (category = ${String(category)} OR source_category ILIKE ${'%' + String(category) + '%'})` : sql``}
+        ORDER BY occurred_at DESC
+        LIMIT ${maxLimit}
+      `) as any[];
+    } else if (lat && lon) {
+      const cLat = parseFloat(String(lat));
+      const cLon = parseFloat(String(lon));
+      const radMeters = Math.min(50000, Math.max(100, parseInt(String(radius), 10) || 2000));
+      const bbox = getBoundingBox(cLat, cLon, radMeters);
+
+      const rawCandidates = await db.execute(sql`
+        SELECT id, category, subcategory, source_category, source_record_id, municipality_name, original_address, source_data,
+               latitude, longitude, occurred_at, year, month
+        FROM ${securityOccurrences}
+        WHERE UPPER(source_id) = ${canonicalSource}
+          AND latitude BETWEEN ${bbox.minLat} AND ${bbox.maxLat}
+          AND longitude BETWEEN ${bbox.minLon} AND ${bbox.maxLon}
+          ${category ? sql`AND (category = ${String(category)} OR source_category ILIKE ${'%' + String(category) + '%'})` : sql``}
+        ORDER BY occurred_at DESC
+        LIMIT 600
+      `) as any[];
+
+      for (const row of rawCandidates) {
+        if (row.latitude !== null && row.longitude !== null) {
+          const dist = haversineDistance(cLat, cLon, Number(row.latitude), Number(row.longitude));
+          if (dist <= radMeters) {
+            candidates.push(row);
+            if (candidates.length >= maxLimit) break;
+          }
+        }
+      }
+    } else {
+      // Retorna as ocorrências mais recentes com coordenadas da SSP-SP
+      candidates = await db.execute(sql`
+        SELECT id, category, subcategory, source_category, source_record_id, municipality_name, original_address, source_data,
+               latitude, longitude, occurred_at, year, month
+        FROM ${securityOccurrences}
+        WHERE UPPER(source_id) = ${canonicalSource}
+          AND latitude IS NOT NULL AND longitude IS NOT NULL
+          ${category ? sql`AND (category = ${String(category)} OR source_category ILIKE ${'%' + String(category) + '%'})` : sql``}
+        ORDER BY occurred_at DESC
+        LIMIT ${maxLimit}
+      `) as any[];
+    }
+
+    const occurrences = candidates.map(row => {
+      let extra: any = {};
+      if (row.source_data) {
+        try {
+          extra = typeof row.source_data === 'string' ? JSON.parse(row.source_data) : row.source_data;
+        } catch {}
+      }
+
+      return {
+        id: row.id,
+        latitude: Number(row.latitude),
+        longitude: Number(row.longitude),
+        category: row.category,
+        subcategory: row.subcategory || extra.RUBRICA || null,
+        sourceCategory: row.source_category || extra.NATUREZA_APURADA || extra.DELITO || null,
+        date: row.occurred_at ? new Date(row.occurred_at).toISOString() : null,
+        time: extra.HORA_OCORRENCIA_BO || extra.HORA_FATO || null,
+        address: row.original_address || (extra.LOGRADOURO ? `${extra.LOGRADOURO}${extra.NUMERO_LOGRADOURO ? ', ' + extra.NUMERO_LOGRADOURO : ''}` : null),
+        boNumber: extra.NUM_BO || extra.N_DO_BO || row.source_record_id || null,
+        boYear: extra.ANO_BO || row.year || null,
+        delegacia: extra.NOME_DELEGACIA_CIRCUNSCRICAO || extra.NOME_DELEGACIA || null,
+        bairro: extra.BAIRRO || null,
+        municipality: row.municipality_name || 'São Paulo'
+      };
+    });
+
+    res.json({
+      total: occurrences.length,
+      source: 'SSP-SP',
+      occurrences
+    });
+  } catch (error: any) {
+    logger.error("Map occurrences query failed", { error: error.message });
+    res.status(500).json({ error: "Falha ao consultar ocorrências no mapa." });
+  }
+});
+
 app.post("/api/summary", publicApiLimiter, async (req, res) => {
   const { data } = req.body;
   if (!data) return res.status(400).json({ error: "Missing data payload" });

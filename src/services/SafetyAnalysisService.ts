@@ -38,6 +38,23 @@ export interface FallbackInfo {
   disclosure?: string;
 }
 
+export interface ExactOccurrence {
+  id?: string;
+  latitude: number;
+  longitude: number;
+  category: string;
+  subcategory?: string | null;
+  sourceCategory?: string | null;
+  date: string;
+  time?: string | null;
+  address?: string | null;
+  boNumber?: string | null;
+  boYear?: number | null;
+  delegacia?: string | null;
+  bairro?: string | null;
+  municipality?: string | null;
+}
+
 export interface AnalysisResult {
   score: number | null;
   status: 'insufficient_data' | 'low_confidence' | 'medium_confidence' | 'high_confidence';
@@ -93,7 +110,7 @@ export interface AnalysisResult {
   } | null;
   methodology: string;
   dataAbsenceNotice?: string;
-  exactOccurrences?: Array<{ latitude: number; longitude: number; category: string; date: string }>;
+  exactOccurrences?: ExactOccurrence[];
 }
 
 export class SafetyAnalysisService {
@@ -579,27 +596,59 @@ export class SafetyAnalysisService {
     }
   }
 
-  private async fetchExactOccurrences(lat: number, lon: number, radiusMeters: number, startDate: Date, endDate: Date, sourceId: string) {
+  private async fetchExactOccurrences(lat: number, lon: number, radiusMeters: number, startDate: Date, endDate: Date, sourceId: string): Promise<ExactOccurrence[]> {
     const canonicalSource = sourceId.toUpperCase();
     
+    // Helper to format an occurrence row
+    const formatOccurrence = (row: any): ExactOccurrence => {
+      let extra: any = {};
+      if (row.source_data) {
+        try {
+          extra = typeof row.source_data === 'string' ? JSON.parse(row.source_data) : row.source_data;
+        } catch {}
+      }
+
+      const numBo = extra.NUM_BO || extra.N_DO_BO || extra.NUMERO_BO || row.source_record_id || null;
+      const anoBo = extra.ANO_BO || row.year || (row.occurred_at ? new Date(row.occurred_at).getUTCFullYear() : null);
+      const time = extra.HORA_OCORRENCIA_BO || extra.HORA_FATO || null;
+      const delegacia = extra.NOME_DELEGACIA_CIRCUNSCRICAO || extra.NOME_DELEGACIA || null;
+      const bairro = extra.BAIRRO || null;
+      const logradouro = extra.LOGRADOURO ? `${extra.LOGRADOURO}${extra.NUMERO_LOGRADOURO ? ', ' + extra.NUMERO_LOGRADOURO : ''}` : null;
+      const address = row.original_address || logradouro || (bairro ? `${bairro}, ${row.municipality_name || 'SP'}` : null);
+
+      return {
+        id: row.id,
+        latitude: Number(row.latitude),
+        longitude: Number(row.longitude),
+        category: normalizeLegacyCategoryFix(row.category),
+        subcategory: row.subcategory || extra.RUBRICA || null,
+        sourceCategory: row.source_category || extra.NATUREZA_APURADA || extra.DELITO || null,
+        date: row.occurred_at ? new Date(row.occurred_at).toISOString() : startDate.toISOString(),
+        time,
+        address,
+        boNumber: numBo ? String(numBo) : null,
+        boYear: anoBo ? parseInt(String(anoBo), 10) : null,
+        delegacia,
+        bairro,
+        municipality: row.municipality_name || 'São Paulo'
+      };
+    };
+
     // 1. Tenta PostGIS se disponível
     try {
       const results = await db.execute(sql`
-        SELECT category, ST_Y(geom::geometry) as latitude, ST_X(geom::geometry) as longitude, occurred_at
+        SELECT id, category, subcategory, source_category, source_record_id, municipality_name, original_address, source_data,
+               ST_Y(geom::geometry) as latitude, ST_X(geom::geometry) as longitude, occurred_at, year, month
         FROM ${securityOccurrences}
         WHERE UPPER(source_id) = ${canonicalSource}
           AND occurred_at >= ${startDate.toISOString()}
           AND occurred_at <= ${endDate.toISOString()}
           AND ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)::geography) <= ${radiusMeters}
-        LIMIT 100
+        ORDER BY occurred_at DESC
+        LIMIT 250
       `);
       if (results && (results as any[]).length > 0) {
-        return (results as any[]).map(row => ({
-          latitude: Number(row.latitude),
-          longitude: Number(row.longitude),
-          category: normalizeLegacyCategoryFix(row.category),
-          date: new Date(row.occurred_at).toISOString()
-        }));
+        return (results as any[]).map(formatOccurrence);
       }
     } catch {}
 
@@ -607,31 +656,28 @@ export class SafetyAnalysisService {
     try {
       const bbox = getBoundingBox(lat, lon, radiusMeters);
       const candidates = await db.execute(sql`
-        SELECT category, latitude, longitude, occurred_at
+        SELECT id, category, subcategory, source_category, source_record_id, municipality_name, original_address, source_data,
+               latitude, longitude, occurred_at, year, month
         FROM ${securityOccurrences}
         WHERE UPPER(source_id) = ${canonicalSource}
           AND latitude BETWEEN ${bbox.minLat} AND ${bbox.maxLat}
           AND longitude BETWEEN ${bbox.minLon} AND ${bbox.maxLon}
           AND occurred_at >= ${startDate.toISOString()}
           AND occurred_at <= ${endDate.toISOString()}
+        ORDER BY occurred_at DESC
         LIMIT 500
       `);
 
-      const filtered: any[] = [];
+      const filtered: ExactOccurrence[] = [];
       for (const row of candidates as any[]) {
         if (row.latitude !== null && row.longitude !== null) {
           const dist = haversineDistance(lat, lon, Number(row.latitude), Number(row.longitude));
           if (dist <= radiusMeters) {
-            filtered.push({
-              latitude: Number(row.latitude),
-              longitude: Number(row.longitude),
-              category: normalizeLegacyCategoryFix(row.category),
-              date: new Date(row.occurred_at).toISOString()
-            });
+            filtered.push(formatOccurrence(row));
           }
         }
       }
-      return filtered.slice(0, 100);
+      return filtered.slice(0, 250);
     } catch {
       return [];
     }
