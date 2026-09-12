@@ -210,7 +210,11 @@ async function runSspdsCeAudit() {
     originalFilename: 'sspds_ce_municipios_wide_real.csv',
     checksum: storedCe.metadata.checksum,
     fileSize: storedCe.metadata.size,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
   assert(!!jobResult && !!jobResult.jobId, "40. Criação e agendamento de Job de Ingestão para SSPDS-CE");
 

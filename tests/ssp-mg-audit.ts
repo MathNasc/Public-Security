@@ -184,7 +184,11 @@ async function runSspMgAudit() {
     originalFilename: 'ssp_mg_municipios_vertical_real.csv',
     checksum: storedMg.metadata.checksum,
     fileSize: storedMg.metadata.size,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
   assert(!!jobResult && !!jobResult.jobId, "30. Criação e agendamento de Job de Ingestão para SEJUSP-MG");
 

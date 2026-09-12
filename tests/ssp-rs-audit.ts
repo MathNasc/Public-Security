@@ -191,7 +191,11 @@ async function runSspRsAudit() {
     originalFilename: 'ssp_rs_municipios_wide_real.csv',
     checksum: storedRs.metadata.checksum,
     fileSize: storedRs.metadata.size,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
   assert(!!jobResult && !!jobResult.jobId, "32. Criação e agendamento de Job de Ingestão para SSP-RS");
 

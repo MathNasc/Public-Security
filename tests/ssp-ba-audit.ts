@@ -207,7 +207,11 @@ async function runSspBaAudit() {
     originalFilename: 'ssp_ba_municipios_wide_real.csv',
     checksum: storedBa.metadata.checksum,
     fileSize: storedBa.metadata.size,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
   assert(!!jobResult && !!jobResult.jobId, "39. Criação e agendamento de Job de Ingestão para SSP-BA");
 

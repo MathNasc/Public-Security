@@ -209,7 +209,11 @@ async function runSspGoAudit() {
     originalFilename: 'ssp_go_municipios_wide_real.csv',
     checksum: storedGo.metadata.checksum,
     fileSize: storedGo.metadata.size,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
   assert(!!jobResult && !!jobResult.jobId, "40. Criação e agendamento de Job de Ingestão para SSP-GO");
 

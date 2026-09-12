@@ -178,7 +178,11 @@ async function runSespRrAudit() {
     originalFilename: 'sesp_rr_municipios_wide_real.csv',
     checksum: storedWide.metadata.checksum,
     fileSize: storedWide.metadata.size,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
   assert(!!jobResult && !!jobResult.jobId, "32. Criação e agendamento de Job de Ingestão para SESP-RR");
 
@@ -203,7 +207,11 @@ async function runSespRrAudit() {
     originalFilename: 'sesp_rr_vertical_real.csv',
     checksum: storedVert.metadata.checksum,
     fileSize: storedVert.metadata.size,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
 
   const [dbVertJob] = await db.select().from(dataImports).where(eq(dataImports.id, vertJobResult.jobId));
@@ -223,7 +231,11 @@ async function runSespRrAudit() {
     originalFilename: 'sesp_rr_corrupted_schema.csv',
     checksum: storedCorrupt.metadata.checksum,
     fileSize: storedCorrupt.metadata.size,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
 
   const [dbCorruptJob] = await db.select().from(dataImports).where(eq(dataImports.id, corruptJobResult.jobId));
@@ -266,7 +278,11 @@ async function runSespRrAudit() {
     originalFilename: 'sesp_rr_municipios_wide_real.csv',
     checksum: storedWide.metadata.checksum,
     fileSize: storedWide.metadata.size,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
 
   const [dbDupJob] = await db.select().from(dataImports).where(eq(dataImports.id, dupJobResult.jobId));

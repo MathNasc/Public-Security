@@ -195,7 +195,11 @@ async function runSspScAudit() {
     originalFilename: 'ssp_sc_municipios_wide_real.csv',
     checksum: storedSc.metadata.checksum,
     fileSize: storedSc.metadata.size,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
   assert(!!jobResult && !!jobResult.jobId, "34. Criação e agendamento de Job de Ingestão para SSP-SC");
 

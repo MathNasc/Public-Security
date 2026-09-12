@@ -210,7 +210,11 @@ async function runSdsPeAudit() {
     originalFilename: 'sds_pe_municipios_wide_real.csv',
     checksum: storedPe.metadata.checksum,
     fileSize: storedPe.metadata.size,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
   assert(!!jobResult && !!jobResult.jobId, "40. Criação e agendamento de Job de Ingestão para SDS-PE");
 

@@ -264,7 +264,11 @@ async function runReliabilitySuite() {
     originalFilename: 'reliability_test.csv',
     checksum: rawFile.metadata.checksum,
     fileSize: rawFile.metadata.size,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
   assert(job !== null && job.jobId !== undefined, 10, 'Criação de Job de Ingestão via JobManager');
 

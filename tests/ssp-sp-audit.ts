@@ -114,7 +114,11 @@ async function runAudit() {
     originalFilename: 'ssp_sp_bo_real.csv',
     checksum: storedBo.metadata.checksum,
     fileSize: storedBo.metadata.size,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
   assert(!!jobResult && !!jobResult.jobId, "23. Criação e agendamento de Job para SSP-SP");
 
@@ -166,7 +170,11 @@ async function runAudit() {
     originalFilename: 'ssp_sp_indicadores_horizontal.csv',
     checksum: storedHoriz.metadata.checksum,
     fileSize: storedHoriz.metadata.size,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
   const [dbHorizJob] = await db.select().from(dataImports).where(eq(dataImports.id, horizJobResult.jobId));
   const horizExecResult = await worker.processJobDirectly(dbHorizJob);
@@ -191,7 +199,11 @@ async function runAudit() {
     originalFilename: 'ssp_sp_indicadores_vertical.csv',
     checksum: storedVert.metadata.checksum,
     fileSize: storedVert.metadata.size,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
   const [dbVertJob] = await db.select().from(dataImports).where(eq(dataImports.id, vertJobResult.jobId));
   const vertExecResult = await worker.processJobDirectly(dbVertJob);

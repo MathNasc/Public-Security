@@ -1,6 +1,6 @@
 import { db } from '../db/index.js';
 import { geographicMunicipalities, securityOccurrences, securityIndicators, dataImports, dataSources } from '../db/schema.js';
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, or, gte, lte } from "drizzle-orm";
 import { TAXONOMY_VERSION, normalizeLegacyCategory, getCategoryGroup, normalizeLegacyCategoryFix, getCategoryGroupFix, CanonicalCategory, CategoryGroup } from './Taxonomy.js';
 import { getPrimarySource } from '../ingestion/pipeline/SourcePriority.js';
 import { GeoNormalizationService } from './GeoNormalizationService.js';
@@ -201,7 +201,7 @@ export class SafetyAnalysisService {
       };
     } else {
       // Se não houver ocorrências pontuais com coordenadas no raio, busca indicadores municipais da fonte primária
-      indicators = await this.aggregateIndicators(geoId.ibgeCode, startDate, endDate, primarySourceId);
+      indicators = await this.aggregateIndicators(geoId, startDate, endDate, primarySourceId);
       
       if (indicators.length > 0) {
         granularity = 'municipality';
@@ -214,7 +214,7 @@ export class SafetyAnalysisService {
         };
       } else if (primarySourceId !== 'SINESP') {
         // Se a fonte primária estadual não tiver dados, tenta o agregador nacional SINESP
-        const sinespIndicators = await this.aggregateIndicators(geoId.ibgeCode, startDate, endDate, 'SINESP');
+        const sinespIndicators = await this.aggregateIndicators(geoId, startDate, endDate, 'SINESP');
         if (sinespIndicators.length > 0) {
           indicators = sinespIndicators;
           granularity = 'municipality';
@@ -257,7 +257,7 @@ export class SafetyAnalysisService {
     if (granularity === 'coordinate') {
       prevIndicators = await this.aggregateOccurrences(validLat, validLon, radiusMeters, prevStartDate, prevEndDate, effectiveSourceId);
     } else {
-      prevIndicators = await this.aggregateIndicators(geoId.ibgeCode, prevStartDate, prevEndDate, effectiveSourceId);
+      prevIndicators = await this.aggregateIndicators(geoId, prevStartDate, prevEndDate, effectiveSourceId);
     }
 
     const score = this.computeScore(indicators, granularity, radiusMeters, effectiveMonths, geoId.population || 100000);
@@ -659,32 +659,98 @@ export class SafetyAnalysisService {
     });
   }
 
-  private async aggregateIndicators(ibgeCode: string, startDate: Date, endDate: Date, sourceId: string): Promise<IndicatorValue[]> {
+  private async aggregateIndicators(geoId: GeographicIdentification, startDate: Date, endDate: Date, sourceId: string): Promise<IndicatorValue[]> {
     const canonicalSource = sourceId.toUpperCase();
     const startPeriod = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}`;
     const endPeriod = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}`;
+    
+    // Also prepare actual dates for securityOccurrences filtering
+    const startIso = startDate.toISOString();
+    const endIso = endDate.toISOString();
 
     try {
-      const results = await db.execute(sql`
+      // 1. Try fetching from legacy securityIndicators (which used ibgeCode)
+      const resultsIndicators = await db.execute(sql`
         SELECT category, MAX(source_category) as source_category, SUM(value) as value
         FROM ${securityIndicators}
         WHERE UPPER(source_id) = ${canonicalSource}
-          AND (municipality_code = ${ibgeCode} OR municipality_code LIKE ${ibgeCode.substring(0, 6) + '%'})
+          AND (municipality_code = ${geoId.ibgeCode} OR municipality_code LIKE ${geoId.ibgeCode.substring(0, 6) + '%'})
           AND period >= ${startPeriod}
           AND period <= ${endPeriod}
         GROUP BY category
       `);
 
-      return (results as any[]).map(row => {
-        const canonical = normalizeLegacyCategory(row.category);
+      // 2. Try fetching from the new securityOccurrences (where SINESP/ISP-RJ are stored without coordinates)
+      let resultsOccurrences: any[] = [];
+      if (canonicalSource === 'SINESP') {
+        resultsOccurrences = await db.select({
+          category: securityOccurrences.category,
+          source_category: sql<string>`MAX(${securityOccurrences.sourceCategory})`,
+          value: sql<number>`COUNT(*)`
+        })
+        .from(securityOccurrences)
+        .where(
+          and(
+            eq(sql`UPPER(${securityOccurrences.sourceId})`, canonicalSource),
+            or(eq(securityOccurrences.stateCode, geoId.stateAcronym), eq(securityOccurrences.stateCode, 'BR')),
+            gte(securityOccurrences.occurredAt, startDate),
+            lte(securityOccurrences.occurredAt, endDate)
+          )
+        )
+        .groupBy(securityOccurrences.category);
+      } else {
+        resultsOccurrences = await db.select({
+          category: securityOccurrences.category,
+          source_category: sql<string>`MAX(${securityOccurrences.sourceCategory})`,
+          value: sql<number>`COUNT(*)`
+        })
+        .from(securityOccurrences)
+        .where(
+          and(
+            eq(sql`UPPER(${securityOccurrences.sourceId})`, canonicalSource),
+            eq(securityOccurrences.stateCode, geoId.stateAcronym),
+            or(
+              sql`${securityOccurrences.municipalityName} IS NULL`,
+              eq(sql`UPPER(${securityOccurrences.municipalityName})`, geoId.municipalityName.toUpperCase()),
+              eq(securityOccurrences.municipalityName, geoId.ibgeCode)
+            ),
+            gte(securityOccurrences.occurredAt, startDate),
+            lte(securityOccurrences.occurredAt, endDate)
+          )
+        )
+        .groupBy(securityOccurrences.category);
+      }
+
+      const map = new Map<string, any>();
+
+      // Merge legacy indicators
+      for (const row of resultsIndicators as any[]) {
+        const canonical = normalizeLegacyCategoryFix(row.category);
+        if (!map.has(canonical)) {
+          map.set(canonical, { val: 0, srcCat: row.source_category });
+        }
+        map.get(canonical).val += Number(row.value);
+      }
+
+      // Merge occurrences
+      for (const row of resultsOccurrences as any[]) {
+        const canonical = normalizeLegacyCategoryFix(row.category);
+        if (!map.has(canonical)) {
+          map.set(canonical, { val: 0, srcCat: row.source_category });
+        }
+        map.get(canonical).val += Number(row.value);
+      }
+
+      return Array.from(map.entries()).map(([cat, data]) => {
         return {
-          canonicalCategory: canonical,
-          categoryGroup: getCategoryGroup(canonical),
-          value: Number(row.value),
-          sourceCategory: row.source_category
+          canonicalCategory: cat as CanonicalCategory,
+          categoryGroup: getCategoryGroupFix(cat as CanonicalCategory) || "other",
+          value: data.val,
+          sourceCategory: data.srcCat
         };
       });
-    } catch {
+    } catch (e) {
+      console.error('Error in aggregateIndicators:', e);
       return [];
     }
   }

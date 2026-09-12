@@ -192,7 +192,11 @@ async function runSspDfAudit() {
     originalFilename: 'ssp_df_ras_wide_real.csv',
     checksum: storedDf.metadata.checksum,
     fileSize: storedDf.metadata.size,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
   assert(!!jobResult && !!jobResult.jobId, "40. Criação e agendamento de Job de Ingestão para SSP-DF");
 

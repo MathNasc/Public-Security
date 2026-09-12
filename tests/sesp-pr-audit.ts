@@ -193,7 +193,11 @@ async function runSespPrAudit() {
     originalFilename: 'sesp_pr_municipios_wide_real.csv',
     checksum: storedPr.metadata.checksum,
     fileSize: storedPr.metadata.size,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
   assert(!!jobResult && !!jobResult.jobId, "33. Criação e agendamento de Job de Ingestão para SESP-PR");
 

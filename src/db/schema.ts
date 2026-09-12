@@ -50,6 +50,46 @@ export const dataDatasets = pgTable("data_datasets", {
   updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).notNull(),
 });
 
+// ==============================================
+// 1.5. SOURCE DISCOVERY REGISTRY
+// ==============================================
+export const sourceRegistry = pgTable("source_registry", {
+  id: text("id").primaryKey(), // UUID
+  state: text("state").notNull(), // UF
+  institution: text("institution").notNull(),
+  sourceName: text("source_name").notNull(), 
+  officialPage: text("official_page"),
+  downloadUrl: text("download_url"),
+  finalDownloadUrl: text("final_download_url"),
+  downloadMethod: text("download_method"),
+  requiresAuth: boolean("requires_auth").default(false),
+  requiresSession: boolean("requires_session").default(false),
+  requiresCaptcha: boolean("requires_captcha").default(false),
+  contentType: text("content_type"),
+  fileFormat: text("file_format"),
+  coverageStart: text("coverage_start"),
+  coverageEnd: text("coverage_end"),
+  granularity: text("granularity"),
+  hasCoordinates: boolean("has_coordinates").default(false),
+  hasMunicipalityData: boolean("has_municipality_data").default(false),
+  hasStateData: boolean("has_state_data").default(false),
+  periodicity: text("periodicity"),
+  acquisitionMode: text("acquisition_mode"), // automatic, semi_automatic, manual_upload, unavailable, document_only, api, unknown
+  automatable: boolean("automatable").default(false),
+  status: text("status"), // discovered, verified, downloadable, partially_available, manual_only, unavailable, blocked, deprecated, not_investigated
+  lastCheckedAt: timestamp("last_checked_at", { mode: 'date', withTimezone: true }),
+  lastSuccessfulDownloadAt: timestamp("last_successful_download_at", { mode: 'date', withTimezone: true }),
+  lastPublishedPeriod: text("last_published_period"),
+  lastDownloadedHash: text("last_downloaded_hash"),
+  lastDownloadedSize: integer("last_downloaded_size"),
+  parserStatus: text("parser_status"),
+  ingestionStatus: text("ingestion_status"),
+  evidenceLevel: text("evidence_level"), // E0 to E7
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+});
+
 export const dataImports = pgTable("data_imports", {
   id: text("id").primaryKey(),
   sourceId: text("source_id").notNull(),
@@ -98,6 +138,10 @@ export const dataImports = pgTable("data_imports", {
   period: text("period"),
   acquisitionMethod: text("acquisition_method").default("MANUAL_UPLOAD"),
   originUrl: text("origin_url"),
+  sourceType: text("source_type").default("official_download"), // fixture, manual_upload, official_download
+  environment: text("environment").default("production"), // test, production
+  isOfficialPublication: boolean("is_official_publication").default(true),
+  isEligibleForProductionAutomation: boolean("is_eligible_for_production_automation").default(true),
   parserUsed: text("parser_used"),
   parserVersion: text("parser_version"),
   qualityStatus: text("quality_status").default("PENDING"),

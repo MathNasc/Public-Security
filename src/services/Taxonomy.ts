@@ -69,15 +69,26 @@ export function normalizeLegacyCategory(legacy: string): CanonicalCategory {
 
 export function normalizeLegacyCategoryFix(legacy: string): CanonicalCategory {
   const l = legacy.toLowerCase();
-  if (l.includes('veículo')) return 'vehicle_theft';
-  if (l.includes('pessoa')) return 'robbery';
-  if (l.includes('violento')) return 'violent_crime';
+  
+  if (l.includes('cvli') || l.includes('homicidio') || l.includes('homicídio') || l.includes('latrocínio') || l.includes('latrocinio') || l.includes('letal')) return 'homicide';
+  if (l.includes('veículo') || l.includes('veiculo')) {
+    if (l.includes('roubo') || legacy === 'roubo_veiculo') return 'vehicle_robbery';
+    return 'vehicle_theft';
+  }
+  if (l.includes('cvp') || l.includes('patrimonio') || l.includes('patrimonial')) return 'property_crime';
+  if (l.includes('furto')) return 'theft';
+  if (l.includes('roubo') || l.includes('pessoa')) return 'robbery';
+  if (l.includes('violento') || l.includes('violência') || l.includes('violencia')) return 'violent_crime';
+  if (l.includes('sexual') || l.includes('estupro') || l.includes('mulher')) return 'sexual_crime';
+  if (l.includes('drogas') || l.includes('trafico') || l.includes('tráfico') || l.includes('entorpecente')) return 'drug_related';
+  if (l.includes('lesão') || l.includes('lesao')) return 'bodily_harm';
+  
   return 'other';
 }
 
 export function getCategoryGroupFix(category: CanonicalCategory | string): CategoryGroup {
   if (category === 'vehicle_theft' || category === 'vehicle_robbery') return 'vehicle';
-  if (category === 'robbery' || category === 'theft') return 'property';
-  if (category === 'violent_crime' || category === 'homicide') return 'violent';
+  if (category === 'robbery' || category === 'theft' || category === 'property_crime' || category === 'cargo_theft') return 'property';
+  if (category === 'violent_crime' || category === 'homicide' || category === 'bodily_harm' || category === 'sexual_crime') return 'violent';
   return 'other';
 }

@@ -2,6 +2,7 @@ import { dataSources, dataImports, securityOccurrences, securityIndicators, geog
 import { eq, and, gte, lte, asc, sql, isNotNull, isNull, desc } from "drizzle-orm";
 
 import { globalScheduler } from './src/ingestion/orchestration/Scheduler.js';
+import { AutomationService } from "./src/services/AutomationService.js";
 import { PipelineAutomationService } from './src/ingestion/orchestration/PipelineAutomationService.js';
 
 import { analysisCache } from "./src/lib/cache.js";
@@ -666,8 +667,8 @@ app.post("/api/admin/upload-ssp", adminAuth, upload.single("file"), async (req, 
 
 app.post("/api/admin/automation/trigger-all", adminAuth, async (req, res) => {
   try {
-    const jobs = await AutoDownloader.triggerAll();
-    res.json({ success: true, message: `${jobs} fontes verificadas com sucesso! Status dos Links Oficiais atualizados.` });
+    const results = await AutomationService.triggerAll();
+    res.json({ success: true, message: `Automação disparada. Resultados parciais: ${results.join(", ")}` });
   } catch (err: any) {
     console.error("Erro na automação:", err);
     const rootCause = err.cause ? (err.cause.message || err.cause) : err.message;

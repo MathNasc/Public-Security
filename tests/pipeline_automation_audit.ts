@@ -90,7 +90,11 @@ async function runAutomationTests() {
     originalFilename: `ssp-sp-${newVersion}.csv`,
     checksum: `test-checksum-${Date.now()}`,
     fileSize: content.length,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
 
   assert(Boolean(testJobResult.jobId), '8. Job criado com status QUEUED e metadados completos');
@@ -111,7 +115,11 @@ async function runAutomationTests() {
     originalFilename: 'inexistent.csv',
     checksum: `bad-checksum-${Date.now()}`,
     fileSize: 100,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
 
   const badExec = await PipelineAutomationService.executeJobWithResilience(badJobResult.jobId);
@@ -145,7 +153,11 @@ async function runAutomationTests() {
     originalFilename: 'corrupted_schema.csv',
     checksum: `corrupt-sha-${Date.now()}`,
     fileSize: 150,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
 
   const corruptExec = await PipelineAutomationService.executeJobWithResilience(corruptJobResult.jobId);

@@ -262,8 +262,12 @@ async function runSinespAudit() {
       originalFilename: 'sinesp_sample.csv',
       checksum: checksum + '_test_' + Date.now(),
       fileSize: fileStat.size,
-      force: true
-    });
+      force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
+  });
 
     createdJobId = jobResult.jobId;
     const [dbJob] = await db.select().from(dataImports).where(eq(dataImports.id, createdJobId));

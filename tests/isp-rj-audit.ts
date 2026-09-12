@@ -170,7 +170,11 @@ async function runIspRjAudit() {
     originalFilename: 'isp_rj_municipio_mensal_real.csv',
     checksum: storedRj.metadata.checksum,
     fileSize: storedRj.metadata.size,
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
   assert(!!jobResult && !!jobResult.jobId, "24. Criação e agendamento de Job de Ingestão para ISP-RJ");
 

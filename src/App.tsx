@@ -1,6 +1,6 @@
 
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, Link } from "react-router-dom";
 import { Code, ExternalLink, Terminal } from 'lucide-react';
 import { PWAInstallButton } from './components/PWAInstallButton.js';
 import { OfflineIndicator } from './components/OfflineIndicator.js';

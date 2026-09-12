@@ -29,6 +29,10 @@ export class JobManager {
     parserUsed?: string;
     parserVersion?: string;
     qualityStatus?: string;
+    sourceType?: string;
+    environment?: string;
+    isOfficialPublication?: boolean;
+    isEligibleForProductionAutomation?: boolean;
     force?: boolean;
   }): Promise<CreateJobResult> {
     if (!params.force && params.checksum) {
@@ -66,6 +70,10 @@ export class JobManager {
       period: params.period || null,
       acquisitionMethod: params.acquisitionMethod || 'MANUAL_UPLOAD',
       originUrl: params.originUrl || null,
+      sourceType: params.sourceType || 'official_download',
+      environment: params.environment || 'production',
+      isOfficialPublication: params.isOfficialPublication ?? true,
+      isEligibleForProductionAutomation: params.isEligibleForProductionAutomation ?? true,
       parserUsed: params.parserUsed || null,
       parserVersion: params.parserVersion || null,
       qualityStatus: params.qualityStatus || 'PENDING',

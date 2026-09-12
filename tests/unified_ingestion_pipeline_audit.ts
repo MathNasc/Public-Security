@@ -39,7 +39,11 @@ async function runAudit() {
     fileSize,
     stateCode: 'SP',
     acquisitionMethod: 'MANUAL_UPLOAD',
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
 
   console.log(`✓ Job criado: ${jobResult.jobId} (isDuplicate: ${jobResult.isDuplicate})`);
@@ -106,7 +110,11 @@ async function runAudit() {
     fileSize,
     stateCode: 'SP',
     acquisitionMethod: 'MANUAL_UPLOAD',
-    force: false // Idempotência ativada
+    force: false, // Idempotência ativada
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
 
   if (!duplicateJobResult.isDuplicate) {
@@ -133,7 +141,11 @@ async function runAudit() {
     checksum: emptyChecksum,
     fileSize: 0,
     stateCode: 'SP',
-    force: true
+    force: true,
+    sourceType: 'fixture',
+    environment: 'test',
+    isOfficialPublication: false,
+    isEligibleForProductionAutomation: false
   });
 
   const emptyProcessResult = await worker.processJobDirectly(emptyJob.jobId);
