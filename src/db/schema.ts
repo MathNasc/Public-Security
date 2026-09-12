@@ -123,10 +123,11 @@ export const securityOccurrences = pgTable("security_occurrences", {
   // Kept for compatibility during phase 1
   latitude: doublePrecision("latitude"),
   longitude: doublePrecision("longitude"),
-  // New PostGIS geometry column
+  // New PostGIS geometry column (SRID 4326: WGS 84)
   geom: geometry("geom", { type: "point", mode: "xy", srid: 4326 }),
 
-  locationPrecision: text("location_precision"),
+  locationPrecision: text("location_precision").default('exact'), // exact, approximate, municipality_centroid, none
+  isSyntheticPoint: boolean("is_synthetic_point").notNull().default(false), // MANDATORY: Explicit flag for artificial/centroid points
   
   geocodingStatus: text("geocoding_status"),
   geocodingProvider: text("geocoding_provider"),
@@ -139,11 +140,13 @@ export const securityOccurrences = pgTable("security_occurrences", {
   createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).notNull(),
 }, (table) => ({
-  geomIdx: index("occ_geom_idx").using("gist", table.geom), // GIST index for spatial queries
-  geoIdx: index("occ_geo_idx").on(table.latitude, table.longitude), // Legacy compat
+  geomIdx: index("occ_geom_idx").using("gist", table.geom), // GIST index for spatial queries (SRID 4326)
+  geoIdx: index("occ_geo_idx").on(table.latitude, table.longitude), // Bounding box index
   stateIdx: index("occ_state_idx").on(table.stateCode),
   cityIdx: index("occ_city_idx").on(table.municipalityCode),
   dateIdx: index("occ_date_idx").on(table.occurredAt),
+  periodIdx: index("occ_year_month_idx").on(table.year, table.month),
+  catIdx: index("occ_cat_idx").on(table.category),
   srcIdIdx: uniqueIndex("occ_src_id_idx").on(table.sourceId, table.sourceRecordId), // Unique for UPSERT
 }));
 
@@ -163,13 +166,16 @@ export const securityIndicators = pgTable("security_indicators", {
   value: doublePrecision("value").notNull(),
   unit: text("unit").notNull(),
   populationReference: integer("population_reference"),
+  granularity: text("granularity").default("municipality"), // municipality, state, national
   
   createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).notNull(),
 }, (table) => ({
+  sourceIdx: index("ind_source_idx").on(table.sourceId),
   stateIdx: index("ind_state_idx").on(table.stateCode),
   cityIdx: index("ind_city_idx").on(table.municipalityCode),
   periodIdx: index("ind_period_idx").on(table.period),
+  catIdx: index("ind_cat_idx").on(table.category),
   uniqueIndIdx: uniqueIndex("ind_unique_idx").on(table.sourceId, table.stateCode, table.municipalityCode, table.category, table.period), // Unique for UPSERT
 }));
 
@@ -230,19 +236,22 @@ export const geographicStates = pgTable("geographic_states", {
 
 export const geographicMunicipalities = pgTable("geographic_municipalities", {
   code: text("code").primaryKey(), // IBGE code (7 digits)
-  stateCode: text("state_code").notNull(), // Links to geographicStates.code
+  stateCode: text("state_code").notNull().references(() => geographicStates.code), // Links to geographicStates.code
   stateAcronym: text("state_acronym").notNull(), // e.g. SP
   name: text("name").notNull(),
   normalizedName: text("normalized_name").notNull(), // no accents, lowercase for searching
   population: integer("population"), // From census/estimativas
-  latitude: doublePrecision("latitude"), // Centroid
-  longitude: doublePrecision("longitude"), // Centroid
+  latitude: doublePrecision("latitude"), // Centroid (SRID 4326)
+  longitude: doublePrecision("longitude"), // Centroid (SRID 4326)
   geom: geometry("geom", { type: "Geometry", mode: "xy", srid: 4326 }), // Polygons
   createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).notNull(),
 }, (table) => ({
   stateIdx: index("muni_state_idx").on(table.stateAcronym),
+  stateCodeIdx: index("muni_state_code_idx").on(table.stateCode),
   normNameIdx: index("muni_norm_name_idx").on(table.normalizedName),
+  coordsIdx: index("muni_coords_idx").on(table.latitude, table.longitude),
+  uniqueStateNorm: uniqueIndex("muni_state_norm_idx").on(table.stateAcronym, table.normalizedName),
   geomIdx: index("muni_geom_idx").using("gist", table.geom),
 }));
 

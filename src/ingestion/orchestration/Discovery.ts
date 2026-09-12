@@ -35,11 +35,9 @@ export class Discovery {
   }
 
   private static async checkSinesp(dataset: any) {
-    // Emulate checking SINESP data portal for new files
-    const version = 'v' + new Date().toISOString().substring(0, 7);
-    if (dataset.lastVersion !== version) {
-      return { version };
-    }
+    // SINESP automated discovery is blocked: dados.mj.gov.br was decommissioned,
+    // and dados.gov.br requires Bearer authentication / gov.br WAF blocks scripts.
+    console.warn(`[Discovery] SINESP automated discovery is BLOCKED. Remote portal dados.mj.gov.br is decommissioned and dados.gov.br requires Bearer authentication. Manual file ingestion is required.`);
     return null;
   }
 }

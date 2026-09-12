@@ -98,51 +98,272 @@ function DataQualityTab() {
 }
 
 
-function AutomationTab() {
+function AutomationTab({ showToast }: { showToast: (msg: string, type?: "success"|"error"|"info") => void }) {
   const [data, setData] = useState<any>(null);
-  
-  useEffect(() => {
+  const [operational, setOperational] = useState<any>(null);
+  const [isTriggering, setIsTriggering] = useState(false);
+  const [forceTrigger, setForceTrigger] = useState(false);
+  const [isReprocessing, setIsReprocessing] = useState<string | null>(null);
+
+  const loadData = () => {
     fetch("/api/admin/ingestion/status")
       .then(r => r.json())
       .then(setData)
       .catch(console.error);
+
+    fetch("/api/admin/pipeline/operational-status?source=SSP-SP")
+      .then(r => r.json())
+      .then(setOperational)
+      .catch(console.error);
+  };
+
+  useEffect(() => {
+    loadData();
+    const interval = setInterval(loadData, 8000);
+    return () => clearInterval(interval);
   }, []);
 
-  if (!data) return <div className="p-6 text-slate-400">Carregando status da automação...</div>;
+  const handleTriggerSsp = async () => {
+    setIsTriggering(true);
+    try {
+      const res = await fetch("/api/admin/pipeline/trigger-ssp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force: forceTrigger })
+      });
+      const resJson = await res.json();
+      if (resJson.success) {
+        showToast(resJson.reason || "Ciclo de automação SSP-SP concluído com sucesso!", "success");
+      } else {
+        showToast(resJson.reason || resJson.error || "Ciclo não pôde ser executado.", "info");
+      }
+      loadData();
+    } catch (e: any) {
+      showToast("Falha ao acionar automação: " + e.message, "error");
+    } finally {
+      setIsTriggering(false);
+    }
+  };
+
+  const handleReprocessJob = async (jobId: string) => {
+    setIsReprocessing(jobId);
+    try {
+      const res = await fetch(`/api/admin/pipeline/reprocess/${jobId}`, { method: "POST" });
+      const resJson = await res.json();
+      if (resJson.success) {
+        showToast(resJson.message, "success");
+      } else {
+        showToast(resJson.error || "Falha ao reprocessar.", "error");
+      }
+      loadData();
+    } catch (e: any) {
+      showToast("Erro ao reprocessar: " + e.message, "error");
+    } finally {
+      setIsReprocessing(null);
+    }
+  };
+
+  if (!data) return <div className="p-6 text-slate-400">Carregando telemetria da automação...</div>;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-white flex items-center gap-2">
-          <Activity className="text-amber-500"/>
-          Orquestração e Automação (Fase 10)
-        </h2>
-        <button 
-          onClick={() => fetch("/api/admin/ingestion/discovery", { method: 'POST' }).then(() => showToast('Discovery disparado!', 'success'))}
-          className="bg-slate-800 hover:bg-slate-700 text-amber-500 border border-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-        >
-          Executar Discovery Nacional
-        </button>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <Activity className="text-amber-500"/>
+            Automação do Pipeline - Fonte Validada (SSP-SP)
+          </h2>
+          <p className="text-xs text-slate-400 mt-1">
+            Monitoramento das 20 etapas de automação e telemetria operacional em tempo real
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
+            <input 
+              type="checkbox" 
+              checked={forceTrigger} 
+              onChange={e => setForceTrigger(e.target.checked)}
+              className="rounded bg-slate-800 border-slate-700 text-amber-500 focus:ring-amber-500"
+            />
+            Forçar ciclo (ignora cache)
+          </label>
+          <button 
+            disabled={isTriggering}
+            onClick={handleTriggerSsp}
+            className="bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+          >
+            <Server className="w-4 h-4"/>
+            {isTriggering ? "Executando..." : "Disparar Automação SSP-SP"}
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {data.datasets?.map((ds: any) => (
-          <div key={ds.id} className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
-            <div className="flex justify-between items-start mb-2">
-              <h3 className="font-semibold text-slate-200">{ds.name}</h3>
-              <span className={`w-2 h-2 rounded-full ${ds.status === 'healthy' ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+      {/* Painel de Métricas Operacionais Obrigatórias */}
+      {operational && (
+        <div className="bg-slate-900/60 p-5 rounded-xl border border-slate-800 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div className="flex items-center gap-3">
+              <span className={`px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${
+                operational.sourceStatus === 'OPERATIONAL' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                operational.sourceStatus === 'FAILING' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+              }`}>
+                ● {operational.sourceStatus}
+              </span>
+              <span className="text-sm font-semibold text-slate-200">
+                {operational.sourceName} ({operational.sourceId})
+              </span>
             </div>
-            <div className="text-xs text-slate-400 mb-1">Fonte: {ds.sourceId}</div>
-            <div className="text-xs text-slate-500 mb-2">Status: {ds.status}</div>
             <div className="text-xs text-slate-400">
-              Última Versão: <span className="text-amber-400">{ds.lastVersion || 'Nenhuma'}</span>
+              {operational.sourceDelay?.diagnosis}
             </div>
           </div>
-        ))}
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {/* 1. Última Tentativa */}
+            <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/50">
+              <div className="text-xs text-slate-400 font-medium">1. Última Tentativa</div>
+              <div className="text-sm font-semibold text-slate-200 mt-1">
+                {operational.lastAttempt ? new Date(operational.lastAttempt).toLocaleTimeString('pt-BR') : 'Nunca'}
+              </div>
+              <div className="text-[11px] text-slate-500">
+                {operational.lastAttempt ? new Date(operational.lastAttempt).toLocaleDateString('pt-BR') : '-'}
+              </div>
+            </div>
+
+            {/* 2. Último Sucesso */}
+            <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/50">
+              <div className="text-xs text-slate-400 font-medium">2. Último Sucesso</div>
+              <div className="text-sm font-semibold text-emerald-400 mt-1">
+                {operational.lastSuccess ? new Date(operational.lastSuccess).toLocaleTimeString('pt-BR') : 'Nenhum'}
+              </div>
+              <div className="text-[11px] text-slate-500">
+                {operational.lastSuccess ? new Date(operational.lastSuccess).toLocaleDateString('pt-BR') : '-'}
+              </div>
+            </div>
+
+            {/* 3. Última Falha */}
+            <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/50">
+              <div className="text-xs text-slate-400 font-medium">3. Última Falha</div>
+              <div className="text-sm font-semibold text-red-400 mt-1">
+                {operational.lastFailure ? new Date(operational.lastFailure).toLocaleTimeString('pt-BR') : 'Nenhuma'}
+              </div>
+              <div className="text-[11px] text-slate-500">
+                {operational.lastFailure ? new Date(operational.lastFailure).toLocaleDateString('pt-BR') : 'Sem falhas'}
+              </div>
+            </div>
+
+            {/* 4. Duração */}
+            <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/50">
+              <div className="text-xs text-slate-400 font-medium">4. Duração</div>
+              <div className="text-sm font-semibold text-slate-200 mt-1">
+                {operational.durationFormatted || '-'}
+              </div>
+              <div className="text-[11px] text-slate-500">Tempo de execução</div>
+            </div>
+
+            {/* 5. Quantidade de Registros */}
+            <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/50">
+              <div className="text-xs text-slate-400 font-medium">5. Registros (Lidos/Válidos)</div>
+              <div className="text-sm font-semibold text-slate-200 mt-1">
+                {operational.recordsValid} / {operational.recordsRead}
+              </div>
+              <div className="text-[11px] text-emerald-500">
+                +{operational.recordsInserted} inseridos
+              </div>
+            </div>
+
+            {/* 6. Taxa de Registros Inválidos */}
+            <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/50">
+              <div className="text-xs text-slate-400 font-medium">6. Taxa de Inválidos</div>
+              <div className={`text-sm font-semibold mt-1 ${operational.invalidRate > 10 ? 'text-amber-400' : 'text-slate-200'}`}>
+                {operational.invalidRate}%
+              </div>
+              <div className="text-[11px] text-slate-500">Limite de tolerância: 50%</div>
+            </div>
+
+            {/* 7. Duplicidades */}
+            <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/50">
+              <div className="text-xs text-slate-400 font-medium">7. Duplicidades</div>
+              <div className="text-sm font-semibold text-slate-200 mt-1">
+                {operational.duplicatesCount}
+              </div>
+              <div className="text-[11px] text-slate-500">Descartadas por hash</div>
+            </div>
+
+            {/* 8. Retries */}
+            <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/50">
+              <div className="text-xs text-slate-400 font-medium">8. Retries</div>
+              <div className="text-sm font-semibold text-slate-200 mt-1">
+                {operational.retries} / {operational.maxRetries}
+              </div>
+              <div className="text-[11px] text-slate-500">Tentativas automáticas</div>
+            </div>
+
+            {/* 9. Status do Job */}
+            <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/50">
+              <div className="text-xs text-slate-400 font-medium">9. Status do Job</div>
+              <div className="text-sm font-semibold mt-1">
+                <span className={`px-2 py-0.5 rounded text-xs ${
+                  operational.currentJobStatus === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' :
+                  operational.currentJobStatus === 'FAILED' ? 'bg-red-500/20 text-red-400' :
+                  'bg-blue-500/20 text-blue-400'
+                }`}>
+                  {operational.currentJobStatus || 'Nenhum'}
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-500 truncate" title={operational.lastError || ''}>
+                {operational.lastError ? operational.lastError.substring(0, 25) + '...' : 'Sem erros'}
+              </div>
+            </div>
+
+            {/* 10. Atraso da Fonte */}
+            <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/50">
+              <div className="text-xs text-slate-400 font-medium">10. Atraso da Fonte</div>
+              <div className={`text-sm font-semibold mt-1 ${
+                operational.sourceDelay?.delayStatus === 'EM_DIA' ? 'text-emerald-400' :
+                operational.sourceDelay?.delayStatus === 'TOLERAVEL' ? 'text-amber-400' :
+                'text-red-400'
+              }`}>
+                {operational.sourceDelay?.delayDays} dias ({operational.sourceDelay?.delayStatus})
+              </div>
+              <div className="text-[11px] text-slate-500">Freq: {operational.sourceDelay?.expectedFrequency}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Datasets Configurados */}
+      <div>
+        <h3 className="text-slate-300 font-semibold mb-3">Datasets Monitorados</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {data.datasets?.map((ds: any) => (
+            <div key={ds.id} className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+              <div className="flex justify-between items-start mb-2">
+                <h3 className="font-semibold text-slate-200">{ds.name}</h3>
+                <span className={`w-2 h-2 rounded-full ${ds.status === 'healthy' ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+              </div>
+              <div className="text-xs text-slate-400 mb-1">Fonte: {ds.sourceId}</div>
+              <div className="text-xs text-slate-500 mb-2">Status: {ds.status}</div>
+              <div className="text-xs text-slate-400">
+                Última Versão: <span className="text-amber-400">{ds.lastVersion || 'Nenhuma'}</span>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
+      {/* Tabela de Jobs e Ação de Reprocessamento */}
       <div>
-        <h3 className="text-slate-300 font-semibold mb-4">Jobs em Andamento / Recentes</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-slate-300 font-semibold">Histórico de Execução de Jobs (Auditoria de Idempotência)</h3>
+          <button
+            onClick={() => fetch("/api/admin/ingestion/discovery", { method: 'POST' }).then(() => showToast('Discovery disparado!', 'success'))}
+            className="text-xs text-slate-400 hover:text-slate-200 underline"
+          >
+            Executar Discovery Geral
+          </button>
+        </div>
         <div className="overflow-x-auto rounded-xl border border-slate-800">
           <table className="w-full text-sm text-left text-slate-400">
             <thead className="text-xs uppercase bg-slate-800/50 text-slate-400">
@@ -151,7 +372,9 @@ function AutomationTab() {
                 <th className="px-4 py-3">Fonte</th>
                 <th className="px-4 py-3">Versão</th>
                 <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Registros</th>
                 <th className="px-4 py-3">Última Atualização</th>
+                <th className="px-4 py-3 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -169,11 +392,23 @@ function AutomationTab() {
                       {job.status}
                     </span>
                   </td>
+                  <td className="px-4 py-3 text-slate-300">
+                    {job.recordsInserted ? `${job.recordsInserted} inseridos` : (job.recordsRead ? `${job.recordsRead} lidos` : '-')}
+                  </td>
                   <td className="px-4 py-3">{new Date(job.updatedAt || job.completedAt || new Date()).toLocaleString('pt-BR')}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      disabled={isReprocessing === job.id}
+                      onClick={() => handleReprocessJob(job.id)}
+                      className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-2.5 py-1 rounded transition-colors disabled:opacity-50"
+                    >
+                      {isReprocessing === job.id ? "Reenfileirando..." : "Reprocessar"}
+                    </button>
+                  </td>
                 </tr>
               ))}
               {!data.jobs?.length && (
-                <tr><td colSpan={5} className="px-4 py-6 text-center">Nenhum job recente.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-6 text-center">Nenhum job recente.</td></tr>
               )}
             </tbody>
           </table>
@@ -196,7 +431,7 @@ export function Admin() {
 
   const [sources, setSources] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [activeTab, setActiveTab] = useState("ingestion");
+  const [activeTab, setActiveTab] = useState("automation");
   const [isArchExpanded, setIsArchExpanded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -262,34 +497,7 @@ export function Admin() {
   };
 
   
-  const forceDbSync = async () => {
-    setIsUploading(true);
-    try {
-      const token = prompt("Insira a senha de Admin (ADMIN_SECRET) para forçar o Sync do Banco:");
-      if (!token) {
-        setIsUploading(false);
-        return;
-      }
-      
-      const response = await fetch("/api/admin/force-db-sync", { 
-        method: "POST", 
-        headers: { 'Authorization': `Bearer ${token}` } 
-      });
-      const data = await response.json();
-      
-      if (response.ok) {
-        alert("Sync finalizado!\n\nSTDOUT:\n" + data.stdout + "\n\nSTDERR:\n" + data.stderr);
-        fetchSources();
-      } else {
-        alert("Erro no Sync:\n" + data.error + "\n\nSTDOUT:\n" + data.stdout + "\n\nSTDERR:\n" + data.stderr);
-      }
-    } catch (err: any) {
-      alert("Falha ao comunicar com o servidor: " + err.message);
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
+  
   const triggerCrawler = async () => {
     if (!adminPassword) {
       setIsPasswordModalOpen(true);
@@ -402,14 +610,7 @@ export function Admin() {
               {isUploading ? "Processando..." : "Rodar Automação Completa (Crawler Todos os Estados)"}
             </button>
 
-            <button 
-              onClick={forceDbSync}
-              disabled={isUploading}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-900 border border-purple-500 text-slate-100 font-semibold rounded-lg text-sm transition-colors w-full sm:w-auto text-center flex items-center justify-center gap-2 mt-4"
-            >
-              <Database className="w-4 h-4" />
-              {isUploading ? "Processando..." : "Forçar Sincronização do Banco (DB Sync)"}
-            </button>
+            
   
             <div>
               <input type="file" 
@@ -433,10 +634,16 @@ export function Admin() {
 
         <div className="flex gap-4 mb-6 border-b border-slate-800">
           <button 
+            className={`pb-3 px-2 font-medium text-sm transition-colors ${activeTab === 'automation' ? 'text-amber-500 border-b-2 border-amber-500' : 'text-slate-400 hover:text-slate-300'}`}
+            onClick={() => setActiveTab('automation')}
+          >
+            Automação (SSP-SP)
+          </button>
+          <button 
             className={`pb-3 px-2 font-medium text-sm transition-colors ${activeTab === 'ingestion' ? 'text-amber-500 border-b-2 border-amber-500' : 'text-slate-400 hover:text-slate-300'}`}
             onClick={() => setActiveTab('ingestion')}
           >
-            Ingestão de Dados
+            Ingestão Manual
           </button>
           <button 
             className={`pb-3 px-2 font-medium text-sm transition-colors ${activeTab === 'quality' ? 'text-amber-500 border-b-2 border-amber-500' : 'text-slate-400 hover:text-slate-300'}`}
@@ -444,16 +651,10 @@ export function Admin() {
           >
             Qualidade dos Dados
           </button>
-          <button 
-            className={`pb-3 px-2 font-medium text-sm transition-colors ${activeTab === 'api' ? 'text-amber-500 border-b-2 border-amber-500' : 'text-slate-400 hover:text-slate-300'}`}
-            onClick={() => setActiveTab('api')}
-          >
-            Acesso à API (Pública)
-          </button>
         </div>
 
         
-        {activeTab === 'automation' && <AutomationTab />}
+        {activeTab === 'automation' && <AutomationTab showToast={showToast} />}
         {activeTab === 'ingestion' && (
           <div className="space-y-6">
             <div className="bg-slate-900/50 rounded-2xl border border-slate-800 overflow-hidden">
@@ -572,7 +773,7 @@ SINESP/MJSP            Fontes Estaduais
           </div>
         )}
         
-        {activeTab === 'analysis' && <DataQualityTab />}
+        {activeTab === 'quality' && <DataQualityTab />}
       </div>
     </div>
   );

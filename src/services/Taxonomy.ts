@@ -4,6 +4,7 @@ export type CanonicalCategory =
   | 'theft'
   | 'vehicle_robbery'
   | 'vehicle_theft'
+  | 'cargo_theft'
   | 'bodily_harm'
   | 'sexual_crime'
   | 'drug_related'
@@ -29,6 +30,7 @@ export function getCategoryGroup(category: CanonicalCategory | string): Category
     
     case 'robbery':
     case 'theft':
+    case 'cargo_theft':
     case 'property_crime':
     case 'furto': // Legacy
     case 'roubo': // Legacy

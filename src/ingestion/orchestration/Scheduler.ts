@@ -1,9 +1,14 @@
 import { db } from '../../db/index.js';
-import { dataDatasets, ingestionJobs } from '../../db/schema.js';
-import { eq, and, isNull, lt, or, lte } from 'drizzle-orm';
-import crypto from 'crypto';
+import { dataDatasets, dataImports } from '../../db/schema.js';
+import { eq, and, lte } from 'drizzle-orm';
 import { Discovery } from './Discovery.js';
-import { JobWorker } from './JobWorker.js';
+import { JobManager } from '../pipeline/JobManager.js';
+import { rawStorage } from '../pipeline/Storage.js';
+import { PipelineAutomationService } from './PipelineAutomationService.js';
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
+import axios from 'axios';
 
 export class Scheduler {
   private timer: NodeJS.Timeout | null = null;
@@ -28,8 +33,11 @@ export class Scheduler {
     if (this.isRunning) return;
     this.isRunning = true;
     try {
+      // 1. Executa ciclo autônomo da fonte validada (SSP-SP)
+      await PipelineAutomationService.runAutomationCycle();
+      // 2. Descoberta de outros datasets habilitados
       await this.runDiscovery();
-      await this.dispatchJobs();
+      // 3. Recuperação de jobs presos
       await this.recoverStuckJobs();
     } catch (e: any) {
       if (e.message && e.message.includes("ENOTFOUND")) {
@@ -42,9 +50,15 @@ export class Scheduler {
     }
   }
 
+  async triggerSource(sourceId: string, force: boolean = false) {
+    if (sourceId === 'SSP-SP') {
+      return await PipelineAutomationService.runAutomationCycle({ force });
+    }
+    return { success: false, reason: `Automação ainda não ativada para ${sourceId}.` };
+  }
+
   private async runDiscovery() {
     // Find datasets that need discovery based on discoveryFrequency
-    // For simplicity in MVP, we discover all enabled datasets periodically
     const datasets = await db.select().from(dataDatasets).where(eq(dataDatasets.enabled, true));
     
     for (const dataset of datasets) {
@@ -52,18 +66,57 @@ export class Scheduler {
         const hasUpdate = await Discovery.checkForUpdates(dataset);
         
         if (hasUpdate) {
-          console.log(`[Scheduler] New version found for dataset ${dataset.id} (${dataset.name})`);
-          // Create job
-          await db.insert(ingestionJobs).values({
-            id: crypto.randomUUID(),
-            datasetId: dataset.id,
+          console.log(`[Scheduler] Nova versão descoberta para o dataset ${dataset.id} (${dataset.name}): v${hasUpdate.version}`);
+          
+          let rawFilePath = '';
+          let checksum = '';
+          let fileSize = 0;
+          const originalFilename = `${dataset.id}-${hasUpdate.version}.csv`;
+
+          if (dataset.discoveryUrl) {
+            try {
+              const res = await axios.get(dataset.discoveryUrl, { responseType: 'stream', timeout: 30000 });
+              const stored = await rawStorage.put(dataset.id, hasUpdate.version, originalFilename, res.data);
+              rawFilePath = stored.path;
+              checksum = stored.metadata.checksum;
+              fileSize = stored.metadata.size;
+            } catch (err: any) {
+              console.warn(`[Scheduler] Falha no download de ${dataset.discoveryUrl}: ${err.message}`);
+              continue;
+            }
+          } else {
+            // Verifica se há amostra de referência local para o dataset
+            const potentialLocal = [
+              path.join(process.cwd(), 'uploads', 'ssp-sample.csv'),
+              path.join(process.cwd(), 'raw_storage', dataset.id, '2024-01', 'sinesp_sample.csv')
+            ];
+            for (const p of potentialLocal) {
+              if (fs.existsSync(p)) {
+                const content = fs.readFileSync(p);
+                rawFilePath = path.relative(process.cwd(), p);
+                checksum = crypto.createHash('sha256').update(content).digest('hex');
+                fileSize = content.length;
+                break;
+              }
+            }
+          }
+
+          if (!rawFilePath || !fs.existsSync(path.isAbsolute(rawFilePath) ? rawFilePath : path.join(process.cwd(), rawFilePath))) {
+            console.log(`[Scheduler] Dataset ${dataset.id} não possui arquivo RAW disponível para criar job. Aguardando upload ou download oficial.`);
+            continue;
+          }
+
+          // Cria Job oficial no pipeline
+          await JobManager.createJob({
             sourceId: dataset.sourceId,
-            status: 'queued',
-            version: hasUpdate.version,
-            retryCount: 0
+            datasetId: dataset.id,
+            rawFilePath,
+            originalFilename,
+            checksum,
+            fileSize,
           });
           
-          // Update dataset last_version
+          // Atualiza last_version do dataset
           await db.update(dataDatasets)
             .set({ 
               lastDiscoveredAt: new Date(),
@@ -71,36 +124,31 @@ export class Scheduler {
             })
             .where(eq(dataDatasets.id, dataset.id));
         }
-      } catch (e) {
-        console.error(`[Scheduler] Discovery failed for ${dataset.id}:`, e);
+      } catch (e: any) {
+        console.error(`[Scheduler] Discovery failed for ${dataset.id}:`, e.message);
       }
     }
-  }
-
-  private async dispatchJobs() {
-    // Trigger workers to pick up queued jobs
-    JobWorker.poke();
   }
 
   private async recoverStuckJobs() {
     // Jobs that have been locked for > 1 hour are considered abandoned
     const oneHourAgo = new Date(Date.now() - 3600000);
     
-    const stuckJobs = await db.select().from(ingestionJobs)
+    const stuckJobs = await db.select().from(dataImports)
       .where(and(
-        eq(ingestionJobs.status, 'processing'),
-        lte(ingestionJobs.lockedAt, oneHourAgo)
+        eq(dataImports.status, 'PROCESSING'),
+        lte(dataImports.lockedAt, oneHourAgo)
       ));
       
     for (const job of stuckJobs) {
       console.log(`[Scheduler] Recovering stuck job ${job.id}`);
-      await db.update(ingestionJobs)
+      await db.update(dataImports)
         .set({
-          status: 'queued',
-          lockedBy: null,
+          status: 'QUEUED',
+          workerId: null,
           lockedAt: null
         })
-        .where(eq(ingestionJobs.id, job.id));
+        .where(eq(dataImports.id, job.id));
     }
   }
 }

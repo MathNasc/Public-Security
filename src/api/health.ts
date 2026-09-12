@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db/index.js';
 import { sql } from 'drizzle-orm';
-import { rawStorage } from '../ingestion/pipeline/Storage.js';
+import { metricsCollector } from '../lib/metrics.js';
 
 export const healthRouter = Router();
 
@@ -14,14 +14,7 @@ healthRouter.get('/readiness', async (req, res) => {
     const dbCheck = await db.execute(sql`SELECT 1 as healthy`);
     const isDbHealthy = dbCheck && dbCheck.length > 0;
     
-    // Check if raw storage directory is accessible
-    let isStorageHealthy = false;
-    try {
-      // Very basic check, depends on how storage is implemented. If local, it checks dir.
-      isStorageHealthy = true;
-    } catch(e) {
-      isStorageHealthy = false;
-    }
+    let isStorageHealthy = true;
 
     if (isDbHealthy && isStorageHealthy) {
       res.status(200).json({ status: 'ready', db: 'ok', storage: 'ok' });
@@ -31,4 +24,13 @@ healthRouter.get('/readiness', async (req, res) => {
   } catch (error: any) {
     res.status(503).json({ status: 'not_ready', error: error.message });
   }
+});
+
+healthRouter.get('/metrics', (req, res) => {
+  const summary = metricsCollector.getMetricsSummary();
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    metrics: summary
+  });
 });

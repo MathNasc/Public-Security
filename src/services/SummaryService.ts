@@ -1,64 +1,51 @@
-import { GoogleGenAI } from '@google/genai';
+import { AiExplanationService, ControlledAiContext } from './AiExplanationService.js';
 
 export class SummaryService {
-  private ai: GoogleGenAI;
+  private explanationService: AiExplanationService;
 
   constructor() {
-    this.ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    this.explanationService = new AiExplanationService();
   }
 
   async generateSummary(structuredData: any): Promise<string> {
-    const prompt = `Você é um analista de dados especialista em segurança pública.
-Escreva um resumo analítico claro, em português do Brasil, para o público geral.
-O resumo não deve conter alucinações, e você deve basear-se ESTRITAMENTE nos dados estruturados abaixo.
-Não assuma ou adivinhe causas. Mantenha o tom neutro e objetivo.
+    const rawData = structuredData?.data || structuredData;
+    const resultData = rawData?.result || rawData;
 
-INSTRUÇÕES IMPORTANTES SOBRE DADOS VAZIOS:
-Se os dados indicarem "insufficient_data" (status do score como "Dados insuficientes") ou se todas as estatísticas criminais forem iguais a 0 (zero), NÃO DESCREVA ISSO DE FORMA ROBÓTICA E TÉCNICA (ex: não diga "O score é 0 com confiança 0").
-Em vez disso, aja de forma acolhedora e educada. Diga que "Ainda não temos dados históricos consolidados ou suficientes registrados no sistema para esta região específica."
-Explique brevemente que o sistema está em constante atualização e novos dados oficiais serão importados em breve.
-Se não houver dados, não crie tópicos listando variáveis técnicas como previousScore, indicators, ou zeros. Mantenha um texto fluido de no máximo 2 parágrafos tranquilizando o usuário.
+    const context: ControlledAiContext = {
+      mode: 'explanation',
+      location: {
+        city: resultData?.geographicIdentification?.municipality?.name || rawData?.city || rawData?.municipality || 'Localidade',
+        state: resultData?.geographicIdentification?.state?.acronym || rawData?.state || 'BR',
+        formattedAddress: resultData?.geographicIdentification?.municipality?.name
+      },
+      score: {
+        value: resultData?.score !== undefined ? resultData.score : (rawData?.score !== undefined ? rawData.score : null),
+        classification: rawData?.score?.classification || (resultData?.score !== null ? 'Analisado' : 'Dados insuficientes'),
+        confidence: resultData?.confidence !== undefined ? resultData.confidence : (rawData?.confidence || 0)
+      },
+      period: {
+        months: resultData?.period?.months || 12,
+        label: resultData?.period?.label || rawData?.period?.label || 'últimos 12 meses'
+      },
+      indicators: resultData?.indicators || rawData?.indicators || [],
+      sources: resultData?.sources || rawData?.sources || rawData?.dataSources || [],
+      limitations: resultData?.limitations || rawData?.limitations || [],
+      factors: resultData?.factors || rawData?.factors || [],
+      fallback: resultData?.fallback || rawData?.fallback || { used: false },
+      trend: resultData?.trend || rawData?.trend,
+      status: resultData?.status || rawData?.status || (resultData?.indicators?.length > 0 ? 'available' : 'insufficient_data'),
+      dataAbsenceNotice: resultData?.dataAbsenceNotice || rawData?.dataAbsenceNotice
+    };
 
-Caso Haja Dados Reais (Score acima de zero):
-Descreva a variação no Score de Segurança e os indicadores que subiram ou desceram.
-Mencione também os 2 principais indicadores que subiram ou caíram (comparando "indicators" com "previousIndicators").
+    const explanationResult = await this.explanationService.processExplanation(context);
+    return explanationResult.response;
+  }
 
-DADOS ESTRUTURADOS:
-${JSON.stringify(structuredData, null, 2)}`;
-
-    const modelsToTry = [
-      'gemini-3.6-flash'
-    ];
-
-    for (const model of modelsToTry) {
-      let retries = 2; // Allow 2 retries per model
-      
-      while (retries >= 0) {
-        try {
-          const response = await this.ai.models.generateContent({
-            model: model,
-            contents: prompt,
-          });
-          return response.text || 'Não foi possível gerar um resumo no momento.';
-        } catch (error: any) {
-          const is503 = error?.message?.includes('503') || error?.status === 'UNAVAILABLE';
-          const is429 = error?.message?.includes('429') || error?.status === 'RESOURCE_EXHAUSTED';
-          
-          if ((is503 || is429) && retries > 0) {
-            // Wait 1.5s and retry
-            await new Promise(r => setTimeout(r, 1500));
-            retries--;
-            continue;
-          }
-          
-          if (!is429) {
-            console.error(`Failed to generate summary with model ${model}:`, error.message || error);
-          }
-          break; // Break the retry loop and go to next model
-        }
-      }
-    }
-        
-    return 'Resumo temporariamente indisponível devido a alta demanda nos servidores de IA. Por favor, tente novamente em alguns instantes.';
+  static generateDeterministicFallback(data: any): string {
+    return AiExplanationService.generateDeterministicExplanation({
+      location: { city: data?.city, state: data?.state },
+      indicators: data?.indicators || [],
+      sources: data?.sources || []
+    });
   }
 }

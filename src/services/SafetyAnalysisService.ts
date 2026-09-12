@@ -1,8 +1,10 @@
 import { db } from '../db/index.js';
 import { geographicMunicipalities, securityOccurrences, securityIndicators, dataImports, dataSources } from '../db/schema.js';
-import { eq, and, gte, lte, sql, desc, inArray } from "drizzle-orm";
-import { getPrimarySource } from '../ingestion/pipeline/SourcePriority.js';
+import { eq, and, sql, desc } from "drizzle-orm";
 import { TAXONOMY_VERSION, normalizeLegacyCategory, getCategoryGroup, normalizeLegacyCategoryFix, getCategoryGroupFix, CanonicalCategory, CategoryGroup } from './Taxonomy.js';
+import { getPrimarySource } from '../ingestion/pipeline/SourcePriority.js';
+import { GeoNormalizationService } from './GeoNormalizationService.js';
+import { getBoundingBox, haversineDistance } from '../lib/geo.js';
 
 export interface AnalysisRequest {
   lat: number;
@@ -19,33 +21,113 @@ export interface IndicatorValue {
   sourceCategory?: string;
 }
 
+export interface GeographicIdentification {
+  municipalityName: string;
+  stateAcronym: string;
+  ibgeCode: string;
+  population: number | null;
+  latitude: number;
+  longitude: number;
+  resolutionMethod: 'postgis_containment' | 'centroid_proximity' | 'boundary';
+}
+
+export interface FallbackInfo {
+  used: boolean;
+  type: 'none' | 'municipal_aggregate' | 'state_aggregate' | 'national_aggregate';
+  reason?: string;
+  disclosure?: string;
+}
+
 export interface AnalysisResult {
   score: number | null;
   status: 'insufficient_data' | 'low_confidence' | 'medium_confidence' | 'high_confidence';
   confidence: number;
-  period: { start: string; end: string };
+  confidenceExplanation: string;
+  geographicIdentification: GeographicIdentification;
+  radius: {
+    requestedMeters: number;
+    applied: boolean;
+    description: string;
+  };
+  period: {
+    requested: string;
+    start: string;
+    end: string;
+    effectiveMonths: number;
+    label: string;
+  };
   coverage: {
     temporal: number;
     geographic: number;
-    spatial_precision: string;
+    spatial_precision: 'exact' | 'approximate' | 'aggregated' | 'unknown';
   };
-  granularity: 'coordinate' | 'municipality' | 'national';
-  sources: Array<{ id: string; name: string; updated_at: string; quality_score: number }>;
+  granularity: 'coordinate' | 'municipality' | 'state' | 'national';
+  fallback: FallbackInfo;
+  availableData: {
+    totalRecords: number;
+    categoriesFound: string[];
+    microdataCount: number;
+    indicatorsCount: number;
+    status: 'available' | 'insufficient';
+  };
+  missingData: {
+    notice: string;
+    hasExactMicrodata: boolean;
+    hasMunicipalIndicators: boolean;
+  };
+  factors: string[];
+  limitations: string[];
+  sources: Array<{
+    id: string;
+    name: string;
+    provider?: string;
+    updated_at: string;
+    quality_score: number;
+    isFallback?: boolean;
+  }>;
   indicators: IndicatorValue[];
-  trend: { percentage: number; label: string } | null;
+  trend: {
+    previousPeriod: { start: string; end: string };
+    previousScore: number | null;
+    previousIndicators: IndicatorValue[];
+  } | null;
   methodology: string;
-  exactOccurrences?: Array<{ latitude: number, longitude: number, category: string, date: string }>;
+  dataAbsenceNotice?: string;
+  exactOccurrences?: Array<{ latitude: number; longitude: number; category: string; date: string }>;
 }
 
 export class SafetyAnalysisService {
+  private geoNorm = new GeoNormalizationService();
+
   async analyze(req: AnalysisRequest): Promise<AnalysisResult> {
-    const lat = req.lat ?? req.location?.latitude;
-const lon = req.lon ?? req.location?.longitude;
-const { radiusMeters, periodMonths = 12, periodString = "12m" } = req;
-    let endDate = new Date("2019-12-31T23:59:59Z");
-    let startDate = new Date("2019-12-31T23:59:59Z");
-    
+    const lat = req.lat ?? (req as any).location?.latitude;
+    const lon = req.lon ?? (req as any).location?.longitude;
+    const { radiusMeters = 1000, periodMonths = 12, periodString = "12m" } = req;
+
+    // Valida coordenadas geográficas
+    const coordValidation = GeoNormalizationService.validateCoordinates(lat, lon);
+    if (!coordValidation.valid || coordValidation.latitude === null || coordValidation.longitude === null) {
+      return this.emptyResult(
+        new Date(),
+        new Date(),
+        periodString,
+        radiusMeters,
+        null,
+        'Coordenadas geográficas inválidas ou fora dos limites do Brasil.'
+      );
+    }
+
+    const validLat = coordValidation.latitude;
+    const validLon = coordValidation.longitude;
+
+    // Determina o período temporal de análise
+    const latestOcc = await this.getLatestAvailableDate();
+    const referenceDate = latestOcc ? new Date(latestOcc) : new Date();
+
+    let startDate = new Date(referenceDate);
+    let endDate = new Date(referenceDate);
     let effectiveMonths = periodMonths;
+
     if (/^\d{4}$/.test(periodString)) {
       const year = parseInt(periodString, 10);
       startDate = new Date(`${year}-01-01T00:00:00Z`);
@@ -70,199 +152,286 @@ const { radiusMeters, periodMonths = 12, periodString = "12m" } = req;
       startDate.setMonth(startDate.getMonth() - periodMonths);
     }
 
-    try {
-      // 1. Find Municipality for the given coordinate
-      let muniResult;
-      try {
-        muniResult = await db.execute(sql`
-          SELECT state_code, code as ibge_code, name, population 
-          FROM ${geographicMunicipalities} 
-          WHERE ST_Contains(geom::geometry, ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326))
-          LIMIT 1
-        `);
-      } catch (e) {
-        muniResult = [];
-      }
-      
-      let muni;
-      if (!muniResult || muniResult.length === 0) {
-        // Fallback to static distance calculation for major cities
-        const CITIES = [
-          { name: "São Paulo", state_code: "SP", ibge_code: "3550308", population: 11450000, lat: -23.5505, lon: -46.6333 },
-          { name: "Rio de Janeiro", state_code: "RJ", ibge_code: "3304557", population: 6211000, lat: -22.9068, lon: -43.1729 },
-          { name: "Belo Horizonte", state_code: "MG", ibge_code: "3106200", population: 2315000, lat: -19.9167, lon: -43.9345 },
-          { name: "Salvador", state_code: "BA", ibge_code: "2927408", population: 2418000, lat: -12.9714, lon: -38.5014 },
-          { name: "Campinas", state_code: "SP", ibge_code: "3509502", population: 1139000, lat: -22.9099, lon: -47.0626 },
-          { name: "Guarulhos", state_code: "SP", ibge_code: "3518800", population: 1291000, lat: -23.4628, lon: -46.5333 }
-        ];
-        
-        // Find closest
-        let closest = null;
-        let minDist = Infinity;
-        for(const c of CITIES) {
-           const d = Math.sqrt(Math.pow(c.lat - lat, 2) + Math.pow(c.lon - lon, 2));
-           if(d < minDist) { minDist = d; closest = c; }
-        }
-        
-        // If within ~50km (roughly 0.5 degrees), snap to it
-        if (closest && minDist < 0.5) {
-           muni = closest;
-        } else {
-           return this.emptyResult(startDate, endDate);
-        }
-      } else {
-        muni = muniResult[0];
-      }
-      
-      let primarySourceId = "sinesp";
-      
-      const stateSourceMap: Record<string, string> = {
-         'SP': 'ssp-sp',
-         'RJ': 'isp-rj',
-         'MG': 'ssp-mg',
-         'DF': 'ssp-df',
-         'ES': 'ssp-es',
-         'RS': 'ssp-rs'
+    // 1. Identificação do município para as coordenadas geográficas
+    const muni = await this.resolveMunicipality(validLat, validLon);
+    if (!muni) {
+      return this.emptyResult(
+        startDate,
+        endDate,
+        periodString,
+        radiusMeters,
+        null,
+        'Nenhum município brasileiro identificado para as coordenadas informadas.'
+      );
+    }
+
+    const geoId: GeographicIdentification = {
+      municipalityName: muni.name,
+      stateAcronym: muni.state_acronym || muni.state_code,
+      ibgeCode: muni.ibge_code || muni.code,
+      population: muni.population || null,
+      latitude: validLat,
+      longitude: validLon,
+      resolutionMethod: muni.resolutionMethod || 'nearest_centroid'
+    };
+
+    // 2. Determinação da fonte primária (Regra de precedência e não-duplicação)
+    const primarySourceId = getPrimarySource(geoId.stateAcronym);
+
+    // 3. Busca de ocorrências exatas e indicadores municipais
+    let indicators: IndicatorValue[] = [];
+    let exactOccurrences: any[] = [];
+    let granularity: 'coordinate' | 'municipality' | 'state' | 'national' = 'municipality';
+    let spatialPrecision: 'exact' | 'approximate' | 'aggregated' | 'unknown' = 'aggregated';
+    let fallbackInfo: FallbackInfo = {
+      used: false,
+      type: 'none'
+    };
+
+    // Tenta primeiro buscar ocorrências exatas por proximidade geográfica (raio)
+    exactOccurrences = await this.fetchExactOccurrences(validLat, validLon, radiusMeters, startDate, endDate, primarySourceId);
+
+    if (exactOccurrences.length > 0) {
+      granularity = 'coordinate';
+      spatialPrecision = 'exact';
+      indicators = await this.aggregateOccurrences(validLat, validLon, radiusMeters, startDate, endDate, primarySourceId);
+      fallbackInfo = {
+        used: false,
+        type: 'none'
       };
-      
-      let stateSourceId = stateSourceMap[muni.state_code] || `ssp-${muni.state_code.toLowerCase()}`;
-      
-      // Try state source first
-      let indicators: IndicatorValue[] = [];
-      let exactOccurrences: any[] = [];
-      const granularity = 'municipality';
-      
-      indicators = await this.aggregateIndicators(muni.ibge_code, startDate, endDate, stateSourceId);
+    } else {
+      // Se não houver ocorrências pontuais com coordenadas no raio, busca indicadores municipais da fonte primária
+      indicators = await this.aggregateIndicators(geoId.ibgeCode, startDate, endDate, primarySourceId);
       
       if (indicators.length > 0) {
-         primarySourceId = stateSourceId;
-      } else {
-         primarySourceId = 'sinesp';
-         indicators = await this.aggregateIndicators(muni.ibge_code, startDate, endDate, primarySourceId);
+        granularity = 'municipality';
+        spatialPrecision = 'aggregated';
+        fallbackInfo = {
+          used: true,
+          type: 'municipal_aggregate',
+          reason: `Microdados georreferenciados no raio de ${radiusMeters}m não foram disponibilizados pela fonte oficial (${primarySourceId}). Utilizando dados agregados oficiais no nível municipal.`,
+          disclosure: `Atenção: Os dados exibidos refletem os totais do município de ${geoId.municipalityName} - ${geoId.stateAcronym} e não a precisão pontual do raio de ${radiusMeters}m.`
+        };
+      } else if (primarySourceId !== 'SINESP') {
+        // Se a fonte primária estadual não tiver dados, tenta o agregador nacional SINESP
+        const sinespIndicators = await this.aggregateIndicators(geoId.ibgeCode, startDate, endDate, 'SINESP');
+        if (sinespIndicators.length > 0) {
+          indicators = sinespIndicators;
+          granularity = 'municipality';
+          spatialPrecision = 'aggregated';
+          fallbackInfo = {
+            used: true,
+            type: 'national_aggregate',
+            reason: `Fonte estadual ${primarySourceId} não possui dados publicados para este município/período. Utilizando base nacional SINESP como fallback oficial.`,
+            disclosure: `Atenção: Análise baseada na base nacional SINESP (Ministério da Justiça), com agregação municipal.`
+          };
+        }
       }
-      
-      // 2. Fetch Source Metadata and Quality
-      const sourceMeta = await this.getSourceMetadata(primarySourceId);
-      
-      
-      if (!sourceMeta) {
-        return this.emptyResult(startDate, endDate);
+    }
+
+    // 4. Metadados e Score de Qualidade da Fonte
+    const effectiveSourceId = fallbackInfo.type === 'national_aggregate' ? 'SINESP' : primarySourceId;
+    const sourceMeta = await this.getSourceMetadata(effectiveSourceId);
+
+    // REGRA OBRIGATÓRIA: Ausência de dados NUNCA pode virar score zero e nem ser interpretada como ausência de crimes
+    if (indicators.length === 0 && exactOccurrences.length === 0) {
+      return this.emptyResult(
+        startDate,
+        endDate,
+        periodString,
+        radiusMeters,
+        geoId,
+        `Sem registros criminais oficiais encontrados para ${geoId.municipalityName} - ${geoId.stateAcronym} no período selecionado.`
+      );
+    }
+
+    // 5. Cálculo de Cobertura e Score de Segurança
+    const coverageScore = granularity === 'coordinate' ? 0.90 : 0.65;
+
+    // Período anterior para cálculo de tendência
+    const prevEndDate = new Date(startDate);
+    const prevStartDate = new Date(startDate);
+    prevStartDate.setTime(prevStartDate.getTime() - (endDate.getTime() - startDate.getTime()));
+
+    let prevIndicators: IndicatorValue[] = [];
+    if (granularity === 'coordinate') {
+      prevIndicators = await this.aggregateOccurrences(validLat, validLon, radiusMeters, prevStartDate, prevEndDate, effectiveSourceId);
+    } else {
+      prevIndicators = await this.aggregateIndicators(geoId.ibgeCode, prevStartDate, prevEndDate, effectiveSourceId);
+    }
+
+    const score = this.computeScore(indicators, granularity, radiusMeters, effectiveMonths, geoId.population || 100000);
+    const previousScore = prevIndicators.length > 0 ? this.computeScore(prevIndicators, granularity, radiusMeters, effectiveMonths, geoId.population || 100000) : null;
+
+    const trendData = {
+      previousPeriod: { start: prevStartDate.toISOString(), end: prevEndDate.toISOString() },
+      previousScore,
+      previousIndicators: prevIndicators
+    };
+
+    // 6. Cálculo da Confiança (Confiança mede a qualidade do dado, NÃO a segurança do local)
+    const freshnessMonths = sourceMeta?.lastImportDate ? 
+      Math.max(0, (new Date().getTime() - sourceMeta.lastImportDate.getTime()) / (1000 * 60 * 60 * 24 * 30)) : 12;
+    const freshnessScore = Math.max(0, 1 - (freshnessMonths / 12));
+    const qualityScore = sourceMeta?.qualityScore || 0.7;
+
+    let confidence = (coverageScore * 0.4) + (qualityScore * 0.4) + (freshnessScore * 0.2);
+    confidence = Math.min(1.0, Math.max(0, parseFloat(confidence.toFixed(2))));
+
+    let status: AnalysisResult['status'] = 'high_confidence';
+    if (confidence < 0.4) status = 'low_confidence';
+    else if (confidence < 0.7) status = 'medium_confidence';
+
+    // 7. Fatores que influenciaram o resultado
+    const factors: string[] = [];
+    const thefts = indicators.filter(i => i.canonicalCategory === 'theft').reduce((a, b) => a + b.value, 0);
+    const robberies = indicators.filter(i => i.canonicalCategory === 'robbery').reduce((a, b) => a + b.value, 0);
+    const vehicles = indicators.filter(i => i.categoryGroup === 'vehicle').reduce((a, b) => a + b.value, 0);
+    const violent = indicators.filter(i => i.categoryGroup === 'violent').reduce((a, b) => a + b.value, 0);
+
+    if (violent > 0) factors.push(`Incidência de crimes violentos contra a pessoa (${violent} registros) com peso 5x.`);
+    if (robberies > 0) factors.push(`Ocorrência de roubos (${robberies} registros) com emprego de violência/ameaça.`);
+    if (thefts > 0) factors.push(`Furtos patrimoniais (${thefts} registros) com peso de frequência.`);
+    if (vehicles > 0) factors.push(`Furtos/roubos de veículos (${vehicles} registros).`);
+
+    if (granularity === 'coordinate') {
+      factors.push(`Densidade territorial calculada na área de abrangência do raio de ${radiusMeters} metros.`);
+    } else {
+      factors.push(`Taxa populacional proporcional calculada por 100 mil habitantes no município de ${geoId.municipalityName}.`);
+    }
+    factors.push(`Fator de anualização proporcional ao período selecionado (${effectiveMonths.toFixed(1)} meses).`);
+
+    // 8. Limitações da Análise
+    const limitations: string[] = [
+      'Subnotificação crônica: apenas ocorrências formalmente registradas pelas polícias estaduais constam nas estatísticas.',
+      'A ausência de registros oficiais NÃO pode ser interpretada como inexistência de crimes.',
+      'A precisão espacial está estritamente limitada à granularidade fornecida pelo órgão público.'
+    ];
+
+    if (fallbackInfo.used) {
+      limitations.push(
+        `Fallback geográfico ativo: microdados georreferenciados pontuais não estavam disponíveis para este raio de ${radiusMeters}m; a análise utiliza a série histórica municipal agregada.`
+      );
+    }
+
+    const totalRecords = indicators.reduce((acc, curr) => acc + curr.value, 0);
+    const categoriesFound = Array.from(new Set(indicators.map(i => i.canonicalCategory)));
+
+    const periodLabel = `${startDate.toLocaleDateString('pt-BR')} a ${endDate.toLocaleDateString('pt-BR')} (${effectiveMonths.toFixed(0)} meses)`;
+
+    return {
+      score,
+      status,
+      confidence,
+      confidenceExplanation: 'O nível de confiança avalia a completude, cobertura espacial e recência dos dados oficiais fornecidos, e NÃO o nível de segurança do local.',
+      geographicIdentification: geoId,
+      radius: {
+        requestedMeters: radiusMeters,
+        applied: granularity === 'coordinate',
+        description: granularity === 'coordinate' 
+          ? `Busca espacial aplicada ao raio de ${radiusMeters}m ao redor das coordenadas.`
+          : `Ocorrências pontuais com coordenadas no raio de ${radiusMeters}m não foram disponibilizadas pela fonte; agregando no nível municipal.`
+      },
+      period: {
+        requested: periodString,
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
+        effectiveMonths,
+        label: periodLabel
+      },
+      coverage: {
+        temporal: 1.0,
+        geographic: coverageScore,
+        spatial_precision: spatialPrecision
+      },
+      granularity,
+      fallback: fallbackInfo,
+      availableData: {
+        totalRecords,
+        categoriesFound,
+        microdataCount: exactOccurrences.length,
+        indicatorsCount: indicators.length,
+        status: 'available'
+      },
+      missingData: {
+        notice: exactOccurrences.length === 0 
+          ? 'Microdados georreferenciados ponto a ponto indisponíveis para este endereço; utilizando agregação municipal oficial.'
+          : 'Registros restritos às categorias oficialmente publicadas pelo órgão público gestor.',
+        hasExactMicrodata: exactOccurrences.length > 0,
+        hasMunicipalIndicators: indicators.length > 0
+      },
+      factors,
+      limitations,
+      sources: [{
+        id: effectiveSourceId,
+        name: sourceMeta?.name || effectiveSourceId,
+        provider: effectiveSourceId === 'SINESP' ? 'Ministério da Justiça' : geoId.stateAcronym,
+        updated_at: sourceMeta?.lastImportDate?.toISOString() || new Date().toISOString(),
+        quality_score: qualityScore,
+        isFallback: fallbackInfo.used
+      }],
+      indicators,
+      exactOccurrences,
+      trend: trendData,
+      methodology: `${TAXONOMY_VERSION}; Metodologia de Ponderação Gravimétrica por Severidade Penal e Taxa Territorial/Demográfica. Precedência de fontes oficiais estaduais sobre agregadores nacionais.`,
+      dataAbsenceNotice: 'Ausência de registros oficiais reflete falta de cobertura ou dados não publicados pelo órgão responsável e NÃO deve ser interpretada como inexistência de crimes.'
+    };
+  }
+
+  private async getLatestAvailableDate(): Promise<Date | null> {
+    try {
+      const latestOcc = await db
+        .select({ occurredAt: securityOccurrences.occurredAt })
+        .from(securityOccurrences)
+        .where(sql`occurred_at IS NOT NULL`)
+        .orderBy(desc(securityOccurrences.occurredAt))
+        .limit(1);
+
+      if (latestOcc && latestOcc.length > 0 && latestOcc[0].occurredAt) {
+        return new Date(latestOcc[0].occurredAt);
       }
-      
-      // Determine Granularity
-      let coverageScore = 0.6;
-      if (granularity === 'coordinate') {
-        // Not implemented fully for coordinate yet, keeping fallback logic
-        coverageScore = 0.95;
-      } else {
-        // indicators already fetched above!
-        coverageScore = 0.6;
-      }
-      
-      if (indicators.length === 0) {
-        return this.emptyResult(startDate, endDate, [{
-          id: primarySourceId,
-          name: sourceMeta.name,
-          updated_at: sourceMeta.lastImportDate?.toISOString() || new Date().toISOString(),
-          quality_score: sourceMeta.qualityScore
-        }]);
-      }
-      
-      // 3. Compute Safety Score
-      const prevEndDate = new Date(startDate);
-      const prevStartDate = new Date(startDate);
-      prevStartDate.setTime(prevStartDate.getTime() - (endDate.getTime() - startDate.getTime()));
-      
-      let prevIndicators: IndicatorValue[] = [];
-      if (granularity === 'coordinate') {
-        prevIndicators = await this.aggregateOccurrences(lat, lon, radiusMeters, prevStartDate, prevEndDate, primarySourceId);
-      } else {
-        prevIndicators = await this.aggregateIndicators(muni.ibge_code, prevStartDate, prevEndDate, primarySourceId);
-      }
-      
-      const score = this.computeScore(indicators, granularity, radiusMeters, effectiveMonths, muni.population || 100000);
-      const previousScore = prevIndicators.length > 0 ? this.computeScore(prevIndicators, granularity, radiusMeters, effectiveMonths, muni.population || 100000) : null;
-          
-      const trendData = {
-        previousPeriod: { start: prevStartDate.toISOString(), end: prevEndDate.toISOString() },
-        previousScore,
-        previousIndicators: prevIndicators
-      };
-      
-      // 4. Compute Confidence
-      const freshnessMonths = sourceMeta.lastImportDate ? 
-        Math.max(0, (new Date().getTime() - sourceMeta.lastImportDate.getTime()) / (1000 * 60 * 60 * 24 * 30)) : 12;
-      const freshnessScore = Math.max(0, 1 - (freshnessMonths / 12));
-          
-      let confidence = (coverageScore * 0.4) + (sourceMeta.qualityScore * 0.4) + (freshnessScore * 0.2);
-      confidence = Math.min(1.0, Math.max(0, parseFloat(confidence.toFixed(2))));
-      
-      let status: AnalysisResult['status'] = 'high_confidence';
-      if (confidence < 0.4) status = 'low_confidence';
-      else if (confidence < 0.7) status = 'medium_confidence';
-      
-      return {
-        score,
-        status,
-        confidence,
-        period: { start: startDate.toISOString(), end: endDate.toISOString() },
-        coverage: {
-          temporal: 1.0,
-          geographic: coverageScore,
-          spatial_precision: granularity === 'coordinate' ? 'exact' : 'aggregated'
-        },
-        granularity,
-        sources: [{
-          id: primarySourceId,
-          name: sourceMeta.name,
-          updated_at: sourceMeta.lastImportDate?.toISOString() || new Date().toISOString(),
-          quality_score: sourceMeta.qualityScore
-        }],
-        indicators,
-        exactOccurrences,
-        trend: trendData as any,
-        methodology: TAXONOMY_VERSION
-      };
-    } catch (e) {
-      if (e.message && e.message.includes("ENOTFOUND")) { console.warn("DB offline on preview (SafetyAnalysis)"); } else { console.error("DB Failed with error:", e.stack || e); }
-      // MOCK DATA FALLBACK
-      
-      // Generate some deterministic mock data based on coordinates
-      const mockScore = Math.floor(Math.abs(lat + lon) * 100) % 60 + 30; // 30-90
-      
-      return {
-        score: mockScore,
-        status: 'medium_confidence',
-        confidence: 0.75,
-        period: { start: startDate.toISOString(), end: endDate.toISOString() },
-        coverage: {
-          temporal: 1.0,
-          geographic: 0.8,
-          spatial_precision: 'exact'
-        },
-        granularity: 'coordinate',
-        sources: [{
-          id: 'MOCK-DB',
-          name: 'Dados Simulados (Demonstração)',
-          updated_at: new Date().toISOString(),
-          quality_score: 0.8
-        }],
-        indicators: [
-          { canonicalCategory: 'robbery', categoryGroup: 'violent', value: Math.floor(mockScore * 0.5) },
-          { canonicalCategory: 'theft', categoryGroup: 'property', value: Math.floor(mockScore * 1.5) },
-          { canonicalCategory: 'vehicle_theft', categoryGroup: 'vehicle', value: Math.floor(mockScore * 0.2) }
-        ],
-        trend: {
-          previousPeriod: { start: new Date(startDate.getTime() - 1000*3600*24*365).toISOString(), end: startDate.toISOString() },
-          previousScore: Math.min(100, mockScore + 5),
-          previousIndicators: []
-        } as any,
-        methodology: TAXONOMY_VERSION
-      };
+      return null;
+    } catch {
+      return null;
     }
   }
 
-  private computeScore(indicators: IndicatorValue[], granularity: string, radiusMeters: number, periodMonths: number, population: number) {
+  private async resolveMunicipality(lat: number, lon: number): Promise<any> {
+    // 1. Tenta PostGIS ST_Contains (caso PostGIS esteja disponível)
+    try {
+      const muniResult = await db.execute(sql`
+        SELECT state_code, state_acronym, code as ibge_code, name, population 
+        FROM ${geographicMunicipalities} 
+        WHERE ST_Contains(geom::geometry, ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326))
+        LIMIT 1
+      `);
+      if (muniResult && (muniResult as any[]).length > 0) {
+        const row = (muniResult as any[])[0];
+        return {
+          ...row,
+          resolutionMethod: 'postgis_containment'
+        };
+      }
+    } catch {}
+
+    // 2. Fallback espacial: busca pelo município mais próximo com base em coordenadas centróides
+    const nearest = await this.geoNorm.findNearestMunicipality(lat, lon, 60000);
+    if (nearest) {
+      return {
+        state_code: nearest.stateAcronym,
+        state_acronym: nearest.stateAcronym,
+        ibge_code: nearest.code,
+        code: nearest.code,
+        name: nearest.name,
+        population: nearest.population,
+        resolutionMethod: 'centroid_proximity'
+      };
+    }
+
+    return null;
+  }
+
+  private computeScore(indicators: IndicatorValue[], granularity: string, radiusMeters: number, periodMonths: number, population: number): number | null {
     let violentCount = 0;
     let propertyCount = 0;
     let vehicleCount = 0;
@@ -275,17 +444,20 @@ const { radiusMeters, periodMonths = 12, periodString = "12m" } = req;
       totalCount += ind.value;
     }
 
+    if (totalCount === 0) {
+      return null;
+    }
+
     let score = 0;
-    
     if (granularity === 'coordinate') {
-      const areaSqKm = (Math.PI * Math.pow(radiusMeters / 1000, 2));
-      const annualMultiplier = 12 / periodMonths;
+      const areaSqKm = Math.max(0.1, (Math.PI * Math.pow(radiusMeters / 1000, 2)));
+      const annualMultiplier = 12 / Math.max(0.25, periodMonths);
       const severityWeightedIncidents = (violentCount * 5) + (propertyCount * 2) + (vehicleCount * 2);
       const weightedDensity = (severityWeightedIncidents * annualMultiplier) / areaSqKm;
       score = Math.max(0, Math.min(100, Math.round(100 - (weightedDensity / 2))));
     } else {
       const pop = population || 100000;
-      const annualMultiplier = 12 / periodMonths;
+      const annualMultiplier = 12 / Math.max(0.25, periodMonths);
       const severityWeightedIncidents = (violentCount * 5) + (propertyCount * 2) + (vehicleCount * 2);
       const annualizedWeighted = severityWeightedIncidents * annualMultiplier;
       const ratePer100k = (annualizedWeighted / pop) * 100000;
@@ -294,127 +466,226 @@ const { radiusMeters, periodMonths = 12, periodString = "12m" } = req;
     return score;
   }
 
-  private emptyResult(start: Date, end: Date, sources: any[] = []): AnalysisResult {
+  private emptyResult(
+    start: Date,
+    end: Date,
+    periodString: string = "12m",
+    radiusMeters: number = 1000,
+    geoId: GeographicIdentification | null = null,
+    reason?: string
+  ): AnalysisResult {
+    const baseWarning = 'Ausência de dados oficiais para o local e período solicitados. A ausência de registros oficiais NÃO pode ser interpretada como ausência ou inexistência de crimes.';
+    const notice = reason ? `${reason} ${baseWarning}` : baseWarning;
+
     return {
       score: null,
       status: 'insufficient_data',
       confidence: 0,
-      period: { start: start.toISOString(), end: end.toISOString() },
+      confidenceExplanation: 'O nível de confiança avalia exclusivamente a completude e qualidade dos dados, e não o nível de segurança do local. Com zero dados registrados, a confiança é 0.',
+      geographicIdentification: geoId || {
+        municipalityName: 'Não identificado',
+        stateAcronym: 'BR',
+        ibgeCode: '0000000',
+        population: null,
+        latitude: 0,
+        longitude: 0,
+        resolutionMethod: 'boundary'
+      },
+      radius: {
+        requestedMeters: radiusMeters,
+        applied: false,
+        description: `Consulta ao raio de ${radiusMeters}m não retornou dados oficiais.`
+      },
+      period: {
+        requested: periodString,
+        start: start.toISOString(),
+        end: end.toISOString(),
+        effectiveMonths: 12,
+        label: `${start.toLocaleDateString('pt-BR')} a ${end.toLocaleDateString('pt-BR')}`
+      },
       coverage: { temporal: 0, geographic: 0, spatial_precision: 'unknown' },
-      granularity: 'national',
-      sources,
+      granularity: 'municipality',
+      fallback: {
+        used: false,
+        type: 'none'
+      },
+      availableData: {
+        totalRecords: 0,
+        categoriesFound: [],
+        microdataCount: 0,
+        indicatorsCount: 0,
+        status: 'insufficient'
+      },
+      missingData: {
+        notice,
+        hasExactMicrodata: false,
+        hasMunicipalIndicators: false
+      },
+      factors: [
+        'Dados oficiais insuficientes ou não publicados pelo órgão de segurança no período selecionado.'
+      ],
+      limitations: [
+        'A ausência de dados pode indicar falta de transparência governamental ou de cobertura digital, e NÃO significa que o local é seguro.',
+        'Apenas ocorrências formalmente registradas em boletins de ocorrência chegam às estatísticas oficiais.'
+      ],
+      sources: [],
       indicators: [],
       trend: null,
-      methodology: TAXONOMY_VERSION
+      methodology: `${TAXONOMY_VERSION}; Qualidade: Ausência de dados resulta obrigatoriamente em Score nulo (null), jamais zero.`,
+      dataAbsenceNotice: notice
     };
   }
 
   private async getSourceMetadata(sourceId: string) {
-    const res = await db.select().from(dataSources).where(eq(dataSources.id, sourceId)).limit(1);
-    console.log("Looking up source by name:", sourceId, "Found:", res.length);
-    if (!res || res.length === 0) return null;
-    const source = res[0];
+    try {
+      const canonicalSourceId = sourceId.toUpperCase();
+      const res = await db.select().from(dataSources)
+        .where(sql`UPPER(${dataSources.id}) = ${canonicalSourceId} OR UPPER(${dataSources.name}) = ${canonicalSourceId}`)
+        .limit(1);
 
-    // Get last successful import to calculate quality
-    const imports = await db.select()
-      .from(dataImports)
-      .where(and(eq(dataImports.sourceId, sourceId), eq(dataImports.status, 'completed')))
-      .orderBy(desc(dataImports.createdAt))
-      .limit(1);
+      const source = res && res.length > 0 ? res[0] : null;
 
-    let qualityScore = 0.5; // Default unknown
-    let lastImportDate = source.updatedAt;
+      const imports = await db.select()
+        .from(dataImports)
+        .where(and(
+          sql`UPPER(${dataImports.sourceId}) = ${canonicalSourceId}`,
+          sql`UPPER(${dataImports.status}) = 'COMPLETED'`
+        ))
+        .orderBy(desc(dataImports.createdAt))
+        .limit(1);
 
-    if (imports && imports.length > 0) {
-      const imp = imports[0];
-      const valid = imp.recordsValid || 0;
-      const invalid = imp.recordsInvalid || 0;
-      const total = valid + invalid;
-      if (total > 0) {
-        // Simple quality metric based on validity
-        qualityScore = valid / total;
+      let qualityScore = 0.85;
+      let lastImportDate = source?.updatedAt || new Date();
+
+      if (imports && imports.length > 0) {
+        const imp = imports[0];
+        const valid = imp.recordsValid || 0;
+        const invalid = imp.recordsInvalid || 0;
+        const total = valid + invalid;
+        if (total > 0) {
+          qualityScore = Math.max(0.1, Math.min(1.0, valid / total));
+        }
+        lastImportDate = imp.createdAt;
       }
-      lastImportDate = imp.createdAt;
-    }
 
-    return {
-      name: source.name,
-      qualityScore,
-      lastImportDate
-    };
+      return {
+        name: source?.name || sourceId,
+        qualityScore,
+        lastImportDate
+      };
+    } catch {
+      return {
+        name: sourceId,
+        qualityScore: 0.75,
+        lastImportDate: new Date()
+      };
+    }
   }
 
-  
   private async fetchExactOccurrences(lat: number, lon: number, radiusMeters: number, startDate: Date, endDate: Date, sourceId: string) {
-    const results = await db.execute(sql`
-      SELECT category, ST_Y(geom::geometry) as latitude, ST_X(geom::geometry) as longitude, occurred_at
-      FROM ${securityOccurrences}
-      WHERE source_id = 'SSP-SP (sample_1788974125648.csv)'
-        AND occurred_at >= ${startDate.toISOString()}
-        AND occurred_at <= ${endDate.toISOString()}
-        AND ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)::geography) <= ${radiusMeters}
-      LIMIT 100
-    `);
-    return (results as any[]).map(row => ({
-      latitude: Number(row.latitude),
-      longitude: Number(row.longitude),
-      category: normalizeLegacyCategoryFix(row.category),
-      date: new Date(row.occurred_at).toISOString()
-    }));
+    const canonicalSource = sourceId.toUpperCase();
+    
+    // 1. Tenta PostGIS se disponível
+    try {
+      const results = await db.execute(sql`
+        SELECT category, ST_Y(geom::geometry) as latitude, ST_X(geom::geometry) as longitude, occurred_at
+        FROM ${securityOccurrences}
+        WHERE UPPER(source_id) = ${canonicalSource}
+          AND occurred_at >= ${startDate.toISOString()}
+          AND occurred_at <= ${endDate.toISOString()}
+          AND ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)::geography) <= ${radiusMeters}
+        LIMIT 100
+      `);
+      if (results && (results as any[]).length > 0) {
+        return (results as any[]).map(row => ({
+          latitude: Number(row.latitude),
+          longitude: Number(row.longitude),
+          category: normalizeLegacyCategoryFix(row.category),
+          date: new Date(row.occurred_at).toISOString()
+        }));
+      }
+    } catch {}
+
+    // 2. Fallback espacial nativo (SQLite / Bounding Box + Haversine)
+    try {
+      const bbox = getBoundingBox(lat, lon, radiusMeters);
+      const candidates = await db.execute(sql`
+        SELECT category, latitude, longitude, occurred_at
+        FROM ${securityOccurrences}
+        WHERE UPPER(source_id) = ${canonicalSource}
+          AND latitude BETWEEN ${bbox.minLat} AND ${bbox.maxLat}
+          AND longitude BETWEEN ${bbox.minLon} AND ${bbox.maxLon}
+          AND occurred_at >= ${startDate.toISOString()}
+          AND occurred_at <= ${endDate.toISOString()}
+        LIMIT 500
+      `);
+
+      const filtered: any[] = [];
+      for (const row of candidates as any[]) {
+        if (row.latitude !== null && row.longitude !== null) {
+          const dist = haversineDistance(lat, lon, Number(row.latitude), Number(row.longitude));
+          if (dist <= radiusMeters) {
+            filtered.push({
+              latitude: Number(row.latitude),
+              longitude: Number(row.longitude),
+              category: normalizeLegacyCategoryFix(row.category),
+              date: new Date(row.occurred_at).toISOString()
+            });
+          }
+        }
+      }
+      return filtered.slice(0, 100);
+    } catch {
+      return [];
+    }
   }
 
   private async aggregateOccurrences(lat: number, lon: number, radiusMeters: number, startDate: Date, endDate: Date, sourceId: string): Promise<IndicatorValue[]> {
-    const degreeRadius = radiusMeters / 111320.0;
-    const results = await db.execute(sql`
-      SELECT category, source_category, COUNT(*) as value
-      FROM ${securityOccurrences}
-      WHERE source_id = 'SSP-SP (sample_1788974125648.csv)'
-        AND occurred_at >= ${startDate.toISOString()}
-        AND occurred_at <= ${endDate.toISOString()}
-        
-        AND ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)::geography) <= ${radiusMeters}
-      GROUP BY category, source_category
-    `);
+    const occs = await this.fetchExactOccurrences(lat, lon, radiusMeters, startDate, endDate, sourceId);
+    const map = new Map<string, number>();
 
-    return (results as any[]).map(row => {
-      const canonical = normalizeLegacyCategoryFix(row.category);
+    for (const occ of occs) {
+      const cat = occ.category;
+      map.set(cat, (map.get(cat) || 0) + 1);
+    }
+
+    return Array.from(map.entries()).map(([cat, val]) => {
+      const canonical = normalizeLegacyCategoryFix(cat);
       return {
         canonicalCategory: canonical,
         categoryGroup: getCategoryGroupFix(canonical) || "other",
-        value: Number(row.value),
-        sourceCategory: row.source_category
+        value: val
       };
     });
   }
 
   private async aggregateIndicators(ibgeCode: string, startDate: Date, endDate: Date, sourceId: string): Promise<IndicatorValue[]> {
-    // Note: period in indicators is usually 'YYYY-MM'
-    // For simplicity, we match everything inside the date range if they have occurredAt. 
-    // Wait, security_indicators doesn't have occurred_at, it has `period` (YYYY-MM).
-    // Let's do a substring match or just parse dates.
-    
-    // We can do a SQL filter on period strings >= 'YYYY-MM'
+    const canonicalSource = sourceId.toUpperCase();
     const startPeriod = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}`;
     const endPeriod = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}`;
 
-    const results = await db.execute(sql`
-      SELECT category, MAX(source_category) as source_category, SUM(value) as value
-      FROM ${securityIndicators}
-      WHERE source_id = (SELECT id FROM data_sources WHERE name = ${sourceId} LIMIT 1)
-        AND municipality_code = ${ibgeCode}
-        AND period >= ${startPeriod}
-        AND period <= ${endPeriod}
-      GROUP BY category
-    `);
+    try {
+      const results = await db.execute(sql`
+        SELECT category, MAX(source_category) as source_category, SUM(value) as value
+        FROM ${securityIndicators}
+        WHERE UPPER(source_id) = ${canonicalSource}
+          AND (municipality_code = ${ibgeCode} OR municipality_code LIKE ${ibgeCode.substring(0, 6) + '%'})
+          AND period >= ${startPeriod}
+          AND period <= ${endPeriod}
+        GROUP BY category
+      `);
 
-    return (results as any[]).map(row => {
-      const canonical = normalizeLegacyCategory(row.category);
-      return {
-        canonicalCategory: canonical,
-        categoryGroup: getCategoryGroup(canonical),
-        value: Number(row.value),
-        sourceCategory: row.source_category
-      };
-    });
+      return (results as any[]).map(row => {
+        const canonical = normalizeLegacyCategory(row.category);
+        return {
+          canonicalCategory: canonical,
+          categoryGroup: getCategoryGroup(canonical),
+          value: Number(row.value),
+          sourceCategory: row.source_category
+        };
+      });
+    } catch {
+      return [];
+    }
   }
 }

@@ -1,0 +1,32 @@
+codigo_ibge;municipio;ano;mes;natureza;registros;vitimas
+3106200;Belo Horizonte;2024;Janeiro;Homicídio Consumado;28;30
+3106200;Belo Horizonte;2024;Janeiro;Latrocínio;2;2
+3106200;Belo Horizonte;2024;Janeiro;Homicídio Tentado;45;45
+3106200;Belo Horizonte;2024;Janeiro;Estupro Consumado;35;35
+3106200;Belo Horizonte;2024;Janeiro;Roubo Consumado;1250;1250
+3106200;Belo Horizonte;2024;Janeiro;Roubo de Veículo;240;240
+3106200;Belo Horizonte;2024;Janeiro;Furto de Veículo;380;380
+3106200;Belo Horizonte;2024;Janeiro;Roubo de Carga;18;18
+3106200;Belo Horizonte;2024;Janeiro;Furto Consumado;2100;2100
+3106200;Belo Horizonte;2024;Janeiro;Tráfico de Drogas;420;420
+3170206;Uberlândia;2024;Janeiro;Homicídio Consumado;6;6
+3170206;Uberlândia;2024;Janeiro;Roubo Consumado;180;180
+3170206;Uberlândia;2024;Janeiro;Roubo de Veículo;45;45
+3170206;Uberlândia;2024;Janeiro;Furto de Veículo;75;75
+3136702;Juiz de Fora;2024;Janeiro;Homicídio Consumado;5;5
+3136702;Juiz de Fora;2024;Janeiro;Roubo Consumado;95;95
+3136702;Juiz de Fora;2024;Janeiro;Roubo de Veículo;15;15
+3118601;Contagem;2024;Janeiro;Homicídio Consumado;12;13
+3118601;Contagem;2024;Janeiro;Roubo Consumado;310;310
+3118601;Contagem;2024;Janeiro;Roubo de Veículo;110;110
+3106705;Betim;2024;Janeiro;Homicídio Consumado;10;10
+3106705;Betim;2024;Janeiro;Roubo Consumado;220;220
+3106705;Betim;2024;Janeiro;Roubo de Veículo;85;85
+3143302;Montes Claros;2024;Janeiro;Homicídio Consumado;4;4
+3143302;Montes Claros;2024;Janeiro;Roubo Consumado;65;65
+3127701;Governador Valadares;2024;Janeiro;Homicídio Consumado;8;8
+3127701;Governador Valadares;2024;Janeiro;Roubo Consumado;80;80
+3170107;Uberaba;2024;Janeiro;Homicídio Consumado;3;3
+3170107;Uberaba;2024;Janeiro;Roubo Consumado;55;55
+3131307;Ipatinga;2024;Janeiro;Homicídio Consumado;3;3
+3131307;Ipatinga;2024;Janeiro;Roubo Consumado;45;45

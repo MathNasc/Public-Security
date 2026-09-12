@@ -19,10 +19,19 @@ export interface ParsedRecord {
   data: any;
 }
 
+export interface SchemaValidationResult {
+  valid: boolean;
+  format?: 'occurrences' | 'indicators';
+  error?: string;
+  detectedColumns?: string[];
+  missingColumns?: string[];
+}
+
 export abstract class BaseAdapter {
   abstract discover(): Promise<DiscoveryResult>;
   abstract download(destinationPath: string): Promise<string>;
   abstract identifyVersion(): string;
   abstract metadata(): AdapterMetadata;
   abstract parseRow(row: any): ParsedRecord[] | ParsedRecord | null;
+  validateSchema?(headers: string[]): SchemaValidationResult;
 }

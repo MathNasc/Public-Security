@@ -1,0 +1,6 @@
+codigo_ibge;municipio;ano;mes;homicidio_consumado;latrocinio;homicidio_tentado;estupro_consumado;roubo_consumado;furto_consumado;roubo_veiculo;furto_veiculo;roubo_carga;trafico_de_drogas;armas_apreendidas
+3106200;Belo Horizonte;2024;2;25;1;40;30;1180;1950;225;360;15;390;180
+3170206;Uberlândia;2024;2;5;0;8;10;165;420;40;68;4;85;35
+3136702;Juiz de Fora;2024;2;4;0;6;8;88;310;12;28;2;60;22
+3118601;Contagem;2024;2;11;1;15;14;295;650;98;140;12;110;45
+3106705;Betim;2024;2;9;0;12;11;210;480;78;115;8;88;38

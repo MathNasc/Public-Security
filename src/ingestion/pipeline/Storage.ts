@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { pipeline } from 'stream/promises';
+import { Readable } from 'stream';
 
 export interface RawFileMetadata {
   filename: string;
@@ -26,20 +27,21 @@ export class RawStorage {
     return path.join(dir, originalFilename);
   }
 
-  async put(datasetId: string, version: string, originalFilename: string, sourceStream: NodeJS.ReadableStream): Promise<{ path: string, metadata: RawFileMetadata }> {
+  async put(datasetId: string, version: string, originalFilename: string, sourceStream: NodeJS.ReadableStream | Buffer): Promise<{ path: string, metadata: RawFileMetadata }> {
     const targetPath = this.getFilePath(datasetId, version, originalFilename);
     const hash = crypto.createHash('sha256');
     let size = 0;
 
+    const stream = Buffer.isBuffer(sourceStream) ? Readable.from(sourceStream) : sourceStream;
     const writeStream = fs.createWriteStream(targetPath);
     
     // We can compute hash and size while piping
-    sourceStream.on('data', (chunk) => {
+    stream.on('data', (chunk) => {
       hash.update(chunk);
       size += chunk.length;
     });
 
-    await pipeline(sourceStream, writeStream);
+    await pipeline(stream, writeStream);
 
     return {
       path: targetPath,
