@@ -72,18 +72,23 @@ export class BaParser extends BaseParser {
                         municipalityName: String(muni).toUpperCase(),
                         category: crime.cat,
                         sourceCategory: crime.col,
-                        occurredAt: new Date(2024, 0, 1), // Simplification for aggregate if year not in row
+                        occurredAt: new Date(2024, 0, 1), 
                         year: 2024,
                         month: 1,
                         createdAt: new Date(),
                         updatedAt: new Date()
                      });
+                     if (batch.length >= 10) {
+                        await db.insert(securityOccurrences).values(batch).onConflictDoNothing();
+                        recordsProcessed += batch.length;
+                        batch = [];
+                     }
                   }
                }
             }
 
-            if (batch.length >= 500) {
-               await db.insert(securityOccurrences).values(batch);
+            if (batch.length >= 10) {
+               await db.insert(securityOccurrences).values(batch).onConflictDoNothing();
                recordsProcessed += batch.length;
                batch = [];
             }
@@ -153,8 +158,8 @@ export class BaParser extends BaseParser {
                updatedAt: new Date()
             });
 
-            if (batch.length >= 500) {
-               await db.insert(securityOccurrences).values(batch);
+            if (batch.length >= 10) {
+               await db.insert(securityOccurrences).values(batch).onConflictDoNothing();
                recordsProcessed += batch.length;
                batch = [];
             }
@@ -162,7 +167,7 @@ export class BaParser extends BaseParser {
       }
 
       if (batch.length > 0) {
-        await db.insert(securityOccurrences).values(batch);
+        await db.insert(securityOccurrences).values(batch).onConflictDoNothing();
         recordsProcessed += batch.length;
       }
       

@@ -229,7 +229,7 @@ export const securityIndicators = pgTable("security_indicators", {
   cityIdx: index("ind_city_idx").on(table.municipalityCode),
   periodIdx: index("ind_period_idx").on(table.period),
   catIdx: index("ind_cat_idx").on(table.category),
-  uniqueIndIdx: uniqueIndex("ind_unique_idx").on(table.sourceId, table.stateCode, table.municipalityCode, table.category, table.period), // Unique for UPSERT
+  uniqueIndIdx: uniqueIndex("ind_unique_idx").on(table.sourceId, table.stateCode, table.municipalityCode, table.category, table.subcategory, table.period), // Unique for UPSERT
 }));
 
 // ==============================================

@@ -36,7 +36,7 @@ export class BaCrawler {
            const nodeHtml = await this.fetchHtml(this.baseUrl + node);
            const fileLinks = this.extractLinks(nodeHtml, /href="([^"]+\.(csv|xlsx|xls))"/gi);
            
-           for (const fileUrl of fileLinks) {
+           for (const fileUrl of fileLinks.slice(0,1)) {
               const fullUrl = fileUrl.startsWith('http') ? fileUrl : this.baseUrl + fileUrl;
               await this.downloadAndRegisterFile(fullUrl);
            }

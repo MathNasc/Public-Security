@@ -5,6 +5,8 @@ import { SinespParser } from '../parsers/SinespParser.js';
 import { IspRjParser } from '../parsers/IspRjParser.js';
 import { BaParser } from '../parsers/BaParser.js';
 import { CeParser } from '../parsers/CeParser.js';
+import { SpParser } from '../parsers/SpParser.js';
+import { RsParser } from '../parsers/RsParser.js';
 
 export class IngestionWorker {
   async processPendingJobs() {
@@ -26,7 +28,7 @@ export class IngestionWorker {
     
     // Mark as processing
     await db.update(dataImports)
-      .set({ status: 'processing', processingStartedAt: new Date() })
+      .set({ status: 'processing', startedAt: new Date() })
       .where(eq(dataImports.id, job.id));
       
     try {
@@ -44,6 +46,12 @@ export class IngestionWorker {
       } else if (job.sourceId === 'SSPDS-CE') {
         const parser = new CeParser();
         result = await parser.process(job.id, job.rawFilePath, job.datasetId);
+      } else if (job.sourceId === 'SSP-SP') {
+        const parser = new SpParser();
+        result = await parser.process(job.id, job.rawFilePath, job.datasetId);
+      } else if (job.sourceId === 'SSP-RS') {
+        const parser = new RsParser();
+        result = await parser.process(job.id, job.rawFilePath, job.datasetId);
       } else {
         throw new Error(`Nenhum parser configurado para a origem: ${job.sourceId}`);
       }
@@ -52,8 +60,11 @@ export class IngestionWorker {
         await db.update(dataImports)
           .set({ 
             status: 'completed', 
-            processingCompletedAt: new Date(),
-            recordsImported: result.recordsProcessed,
+            finishedAt: new Date(),
+            recordsInserted: result.recordsProcessed,
+            recordsParsed: result.recordsProcessed,
+            recordsValid: result.recordsProcessed,
+            recordsRead: result.recordsProcessed,
             errorMessage: null
           })
           .where(eq(dataImports.id, job.id));
@@ -62,12 +73,14 @@ export class IngestionWorker {
         throw new Error(result.error || 'Erro desconhecido no parser');
       }
       
-    } catch (e) {
+    } catch (e: any) {
       console.error(`[IngestionWorker] Falha no Job ${job.id}:`, e);
       await db.update(dataImports)
         .set({ 
           status: 'failed', 
-          processingCompletedAt: new Date(),
+          finishedAt: new Date(),
+          failedAt: new Date(),
+          lastError: e.message,
           errorMessage: e.message
         })
         .where(eq(dataImports.id, job.id));

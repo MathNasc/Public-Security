@@ -77,7 +77,7 @@ export class JobManager {
       parserUsed: params.parserUsed || null,
       parserVersion: params.parserVersion || null,
       qualityStatus: params.qualityStatus || 'PENDING',
-      status: 'QUEUED',
+      status: 'pending',
       attempts: 0,
       recordsRead: 0,
       recordsValid: 0,
@@ -94,7 +94,7 @@ export class JobManager {
     return {
       jobId,
       isDuplicate: false,
-      status: 'QUEUED'
+      status: 'pending'
     };
   }
   
@@ -121,7 +121,7 @@ export class JobManager {
 
     await db.update(dataImports)
       .set({
-        status: 'QUEUED',
+        status: 'pending',
         attempts: 0,
         checkpoint: '0',
         lastError: null,
