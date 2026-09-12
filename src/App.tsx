@@ -1,6 +1,7 @@
 
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from "react-router-dom";
+import { Code, ExternalLink, Terminal } from 'lucide-react';
 import { PWAInstallButton } from './components/PWAInstallButton.js';
 import { OfflineIndicator } from './components/OfflineIndicator.js';
 import { BottomNavigation } from './components/BottomNavigation.js';
@@ -12,6 +13,17 @@ const Compare = lazy(() => import('./pages/Compare').then(module => ({ default: 
 const DataQuality = lazy(() => import('./pages/DataQuality').then(module => ({ default: module.DataQuality })));
 const Admin = lazy(() => import('./pages/Admin').then(module => ({ default: module.Admin })));
 const ApiDocs = lazy(() => import('./pages/ApiDocs').then(module => ({ default: module.ApiDocs })));
+
+function HeaderNav() {
+  return (
+    <div className="hidden md:flex items-center gap-6">
+      <Link to="/" className="text-sm font-medium text-slate-300 hover:text-amber-500 transition-colors">Início</Link>
+      <Link to="/dashboard" className="text-sm font-medium text-slate-300 hover:text-amber-500 transition-colors">Dashboard</Link>
+      <Link to="/comparar" className="text-sm font-medium text-slate-300 hover:text-amber-500 transition-colors">Comparar</Link>
+      <Link to="/fontes" className="text-sm font-medium text-slate-300 hover:text-amber-500 transition-colors">Fontes</Link>
+    </div>
+  );
+}
 
 export default function App() {
   return (
@@ -28,13 +40,7 @@ export default function App() {
             </Link>
 
             {/* Desktop Nav */}
-            <div className="hidden md:flex items-center gap-6">
-              <Link to="/" className="text-sm font-medium text-slate-300 hover:text-amber-500 transition-colors">Início</Link>
-              <Link to="/resultado?lat=-23.5505&lon=-46.6333&address=S%C3%A3o%20Paulo%2C%20SP" className="text-sm font-medium text-slate-300 hover:text-amber-500 transition-colors">Mapa</Link>
-              <Link to="/dashboard" className="text-sm font-medium text-slate-300 hover:text-amber-500 transition-colors">Dashboard</Link>
-              <Link to="/comparar" className="text-sm font-medium text-slate-300 hover:text-amber-500 transition-colors">Comparar</Link>
-              <Link to="/fontes" className="text-sm font-medium text-slate-300 hover:text-amber-500 transition-colors">Fontes</Link>
-            </div>
+            <HeaderNav />
 
             {/* Install Button & Mobile Quick Actions */}
             <div className="flex items-center gap-3">
@@ -66,14 +72,37 @@ export default function App() {
         {/* Mobile Bottom Navigation */}
         <BottomNavigation />
 
-        {/* Desktop Footer */}
-        <footer className="hidden md:block border-t border-slate-800/60 py-8 px-4 text-center mt-auto">
-          <div className="max-w-5xl mx-auto flex flex-col items-center justify-center gap-3">
-            <p className="text-slate-500 text-xs">Public Security &copy; 2026. Todos os dados são derivados de fontes governamentais oficiais.</p>
-            <div className="flex items-center gap-4">
-              <Link to="/api-docs" className="text-xs font-medium text-slate-400 hover:text-amber-500 transition-colors">API Pública</Link>
-              <a href="https://github.com/MathNasc/Public-Security" target="_blank" rel="noreferrer" className="text-xs font-medium text-slate-400 hover:text-amber-500 transition-colors">Código Aberto</a>
+        {/* Footer */}
+        <footer className="border-t border-slate-800/80 py-8 px-4 text-center mt-auto pb-24 md:pb-8 bg-slate-950/80 backdrop-blur-sm">
+          <div className="max-w-4xl mx-auto flex flex-col items-center justify-center gap-4">
+            <p className="text-slate-400 text-xs sm:text-sm max-w-lg leading-relaxed">
+              Plataforma de código aberto e transparente para análise de segurança pública no Brasil.
+            </p>
+            
+            <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-xs font-semibold">
+              <a 
+                href="https://github.com/MathNasc/Public-Security" 
+                target="_blank" 
+                rel="noreferrer" 
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-amber-500/50 hover:bg-slate-800 transition-all shadow-sm"
+              >
+                <Code className="w-4 h-4 text-amber-500" />
+                <span>Código Aberto (GitHub)</span>
+                <ExternalLink className="w-3 h-3 text-slate-500" />
+              </a>
+
+              <Link 
+                to="/api-docs" 
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-amber-500/50 hover:bg-slate-800 transition-all shadow-sm"
+              >
+                <Terminal className="w-4 h-4 text-amber-500" />
+                <span>API Pública (v1)</span>
+              </Link>
             </div>
+
+            <p className="text-slate-500 text-[11px] pt-1">
+              Public Security &copy; 2026 &bull; Todos os dados são extraídos de portais oficiais de transparência governamental.
+            </p>
           </div>
         </footer>
       </div>

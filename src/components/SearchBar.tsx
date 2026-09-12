@@ -44,17 +44,18 @@ export function SearchBar({ className }: { className?: string }) {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
+        let targetUrl = `/resultado?lat=${latitude}&lon=${longitude}&address=Localização%20Atual`;
         try {
-          // Reverse geocoding option (optional)
           const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`, {
             headers: { 'User-Agent': 'PublicSecurity/1.0' }
           });
           const data = await res.json();
           const addressName = data.display_name || 'Localização Atual';
-          navigate(`/resultado?lat=${latitude}&lon=${longitude}&address=${encodeURIComponent(addressName)}`);
+          targetUrl = `/resultado?lat=${latitude}&lon=${longitude}&address=${encodeURIComponent(addressName)}`;
         } catch (err) {
-          navigate(`/resultado?lat=${latitude}&lon=${longitude}&address=Localização%20Atual`);
+          // fallback url used
         } finally {
+          navigate(targetUrl);
           setGeoLoading(false);
         }
       },
@@ -76,7 +77,8 @@ export function SearchBar({ className }: { className?: string }) {
   };
 
   const handleSelect = (item: any) => {
-    navigate(`/resultado?lat=${item.latitude}&lon=${item.longitude}&address=${encodeURIComponent(item.formattedAddress)}`);
+    const targetUrl = `/resultado?lat=${item.latitude}&lon=${item.longitude}&address=${encodeURIComponent(item.formattedAddress)}`;
+    navigate(targetUrl);
   };
 
   return (

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, MapPin, BarChart2, GitCompare, Database } from 'lucide-react';
+import { Home, BarChart2, GitCompare, Database } from 'lucide-react';
 import { cn } from '../lib/utils.js';
 
 export const BottomNavigation: React.FC = () => {
@@ -13,12 +13,6 @@ export const BottomNavigation: React.FC = () => {
       path: '/',
       icon: Home,
       isActive: location.pathname === '/'
-    },
-    {
-      label: 'Mapa',
-      path: '/resultado?lat=-23.5505&lon=-46.6333&address=S%C3%A3o%20Paulo%2C%20SP',
-      icon: MapPin,
-      isActive: location.pathname === '/resultado'
     },
     {
       label: 'Dashboard',
@@ -45,7 +39,7 @@ export const BottomNavigation: React.FC = () => {
       className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 border-t border-slate-800/80 backdrop-blur-xl shadow-2xl px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
       aria-label="Navegação inferior do aplicativo"
     >
-      <div className="grid grid-cols-5 gap-1 max-w-md mx-auto">
+      <div className="grid grid-cols-4 gap-1 max-w-md mx-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
           return (
