@@ -1,6 +1,8 @@
 import { PipelineAutomationService } from '../src/ingestion/orchestration/PipelineAutomationService.js';
 import { JobManager } from '../src/ingestion/pipeline/JobManager.js';
 import { IngestionWorker } from '../src/ingestion/pipeline/Worker.js';
+import { StateRegistry } from '../src/ingestion/core/registry/StateRegistry.js';
+import { SspSpProvider } from '../src/ingestion/providers/sp/SspSpProvider.js';
 import { db } from '../src/db/index.js';
 import { dataSources, dataImports, securityOccurrences, dataDatasets } from '../src/db/schema.js';
 import { eq, and, desc, sql } from 'drizzle-orm';
@@ -9,6 +11,8 @@ import path from 'path';
 import crypto from 'crypto';
 
 async function runAutomationTests() {
+  StateRegistry.register(new SspSpProvider());
+
   console.log('================================================================================');
   console.log('  AUDITORIA DE AUTOMAÇÃO DO PIPELINE PARA FONTE REAL VALIDADA (SSP-SP)');
   console.log('  Validação das 20 Etapas Obrigatórias e 10 Métricas Operacionais');
@@ -207,21 +211,36 @@ async function runAutomationTests() {
   const recoveredCount = await PipelineAutomationService.recoverStuckJobs();
   assert(recoveredCount >= 1, '17. Job preso identificado e recuperado com sucesso');
   const unStuckJob = await JobManager.getJob(stuckJobId);
-  assert(unStuckJob?.status === 'QUEUED' && unStuckJob.workerId === null, '17. Lock liberado e status resetado para QUEUED');
+  assert((unStuckJob?.status === 'pending' || unStuckJob?.status === 'QUEUED') && unStuckJob.workerId === null, '17. Lock liberado e status resetado para QUEUED/pending');
 
   // -------------------------------------------------------------
   // ETAPA 18: Evitar Execução Duplicada (Mutex)
   // -------------------------------------------------------------
   console.log('\n--- 18. Prevenção de Execução Duplicada (Mutex) ---');
-  // Simula fonte ocupada com job em PROCESSING
-  await db.update(dataImports).set({ status: 'PROCESSING' }).where(eq(dataImports.id, stuckJobId));
+  const mutexJobId = crypto.randomUUID();
+  await db.insert(dataImports).values({
+    id: mutexJobId,
+    sourceId: 'SSP-SP',
+    datasetId: 'ocorrencias_criminais_sp',
+    rawFilePath: samplePath,
+    originalFilename: 'mutex_sample.csv',
+    checksum: `mutex-sha-${Date.now()}`,
+    fileSize: 200,
+    status: 'PROCESSING',
+    attempts: 1,
+    lockedAt: new Date(),
+    startedAt: new Date(),
+    workerId: 'active-worker-777',
+    createdAt: new Date()
+  });
+
   const isBusy = await PipelineAutomationService.isSourceBusy('SSP-SP');
   assert(isBusy === true, '18. Detecção de fonte ocupada ativa');
-  const duplicateCycle = await PipelineAutomationService.runAutomationCycle({ force: false });
+  const duplicateCycle = await PipelineAutomationService.runAutomationCycle({ sourceId: 'SSP-SP', force: false });
   assert(duplicateCycle.success === false && duplicateCycle.reason?.includes('duplicada prevenida'), 
     '18. Execução duplicada simultânea prevenida com sucesso');
   // Libera o job de teste
-  await db.update(dataImports).set({ status: 'COMPLETED' }).where(eq(dataImports.id, stuckJobId));
+  await db.update(dataImports).set({ status: 'succeeded' }).where(eq(dataImports.id, mutexJobId));
 
   // -------------------------------------------------------------
   // ETAPA 19: Reprocessamento Manual
@@ -230,7 +249,7 @@ async function runAutomationTests() {
   const reprocessRes = await JobManager.reprocessJob(stuckJobId);
   assert(reprocessRes.success === true, '19. Reprocessamento manual solicitado e aceito');
   const reprocessedJob = await JobManager.getJob(stuckJobId);
-  assert(reprocessedJob?.status === 'QUEUED' && reprocessedJob.attempts === 0, '19. Job resetado com status QUEUED e attempts=0');
+  assert((reprocessedJob?.status === 'pending' || reprocessedJob?.status === 'QUEUED') && reprocessedJob.attempts === 0, '19. Job resetado com status pending/QUEUED e attempts=0');
 
   // -------------------------------------------------------------
   // ETAPA 20 & 10 MÉTRICAS: Status Operacional Completo

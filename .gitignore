@@ -19,3 +19,7 @@ ssprs.html
 
 # Firebase config (contains secrets)
 firebase-applet-config.json
+
+# Archived technical debt & quarentine
+/archive/*
+!/archive/README.md

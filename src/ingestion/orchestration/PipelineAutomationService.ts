@@ -552,7 +552,7 @@ export class PipelineAutomationService {
       .from(dataImports)
       .where(and(
         sql`lower(source_id) = lower(${sourceId})`,
-        eq(dataImports.status, 'PROCESSING')
+        sql`lower(${dataImports.status}) IN ('processing', 'running')`
       ))
       .limit(1);
 
