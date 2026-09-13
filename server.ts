@@ -36,7 +36,7 @@ import axios from "axios";
 export const app = express();
 export default app;
 app.set("trust proxy", 1);
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const upload = multer({ dest: os.tmpdir() });
 
 app.use(requestLogger);
