@@ -132,6 +132,183 @@ const SP_HOTSPOTS: Hotspot[] = [
       'Avenida Francisco Glicério', 'Rua Barão de Jaguara', 'Rua Coronel Quirino',
       'Avenida Orosimbo Maia', 'Avenida Júlio de Mesquita', 'Avenida Moraes Salles'
     ]
+  },
+  {
+    name: 'Guarulhos - Centro e Cumbica',
+    muniCode: '3518800',
+    muniName: 'Guarulhos',
+    centerLat: -23.4542,
+    centerLon: -46.5337,
+    radiusKm: 3.5,
+    baseCount: 250,
+    streetNames: [
+      'Avenida Tiradentes', 'Rua Dom Pedro II', 'Avenida Paulo Faccini',
+      'Avenida Salgado Filho', 'Rua Doutor Timóteo Penteado', 'Avenida Santos Dumont'
+    ]
+  },
+  {
+    name: 'Osasco - Centro e Autonomistas',
+    muniCode: '3534401',
+    muniName: 'Osasco',
+    centerLat: -23.5325,
+    centerLon: -46.7917,
+    radiusKm: 3.0,
+    baseCount: 230,
+    streetNames: [
+      'Avenida dos Autonomistas', 'Rua Antonio Agú', 'Rua Primitiva Vianco',
+      'Avenida Hildebrando de Lima', 'Avenida Santo Antônio'
+    ]
+  },
+  {
+    name: 'São José dos Campos - Centro e Jardim Satélite',
+    muniCode: '3549904',
+    muniName: 'São José dos Campos',
+    centerLat: -23.1896,
+    centerLon: -45.8841,
+    radiusKm: 3.5,
+    baseCount: 220,
+    streetNames: [
+      'Avenida São José', 'Rua XV de Novembro', 'Avenida Andrômeda',
+      'Avenida Cassiano Ricardo', 'Avenida Nelson D\'Avila'
+    ]
+  },
+  {
+    name: 'Ribeirão Preto - Centro e Zona Sul',
+    muniCode: '3543402',
+    muniName: 'Ribeirão Preto',
+    centerLat: -21.1775,
+    centerLon: -47.8103,
+    radiusKm: 3.5,
+    baseCount: 220,
+    streetNames: [
+      'Rua Tibiriçá', 'Avenida Nove de Julho', 'Avenida Presidente Vargas',
+      'Rua Barão do Amazonas', 'Avenida Independência'
+    ]
+  },
+  {
+    name: 'Sorocaba - Centro e Campolim',
+    muniCode: '3552205',
+    muniName: 'Sorocaba',
+    centerLat: -23.5017,
+    centerLon: -47.4581,
+    radiusKm: 3.5,
+    baseCount: 210,
+    streetNames: [
+      'Avenida Afonso Vergueiro', 'Rua XV de Novembro', 'Avenida Izoraida Marques Peres',
+      'Avenida General Carneiro', 'Avenida Dom Aguirre'
+    ]
+  },
+  {
+    name: 'Santos - Centro e Orla',
+    muniCode: '3548500',
+    muniName: 'Santos',
+    centerLat: -23.9608,
+    centerLon: -46.3339,
+    radiusKm: 3.0,
+    baseCount: 210,
+    streetNames: [
+      'Avenida Ana Costa', 'Avenida Vicente de Carvalho', 'Rua XV de Novembro',
+      'Avenida Washington Luís', 'Avenida Conselheiro Nébias'
+    ]
+  },
+  {
+    name: 'Jundiaí - Centro e 9 de Julho',
+    muniCode: '3525904',
+    muniName: 'Jundiaí',
+    centerLat: -23.1857,
+    centerLon: -46.8892,
+    radiusKm: 3.0,
+    baseCount: 190,
+    streetNames: [
+      'Avenida Nove de Julho', 'Rua Barão de Jundiaí', 'Rua do Retiro',
+      'Avenida Antônio Frederico Ozanan'
+    ]
+  },
+  {
+    name: 'Piracicaba - Centro e Vila Rezende',
+    muniCode: '3538709',
+    muniName: 'Piracicaba',
+    centerLat: -22.7253,
+    centerLon: -47.6492,
+    radiusKm: 3.0,
+    baseCount: 180,
+    streetNames: [
+      'Avenida Armando de Salles Oliveira', 'Rua Governador Pedro de Toledo',
+      'Avenida Rui Barbosa', 'Avenida Independência'
+    ]
+  },
+  {
+    name: 'Bauru - Centro e Getúlio Vargas',
+    muniCode: '3506003',
+    muniName: 'Bauru',
+    centerLat: -22.3147,
+    centerLon: -49.0606,
+    radiusKm: 3.0,
+    baseCount: 180,
+    streetNames: [
+      'Avenida Getúlio Vargas', 'Rua Batista de Carvalho', 'Avenida Nações Unidas',
+      'Rua Primeiros de Agosto'
+    ]
+  },
+  {
+    name: 'Mauá - Centro e Vila Assis',
+    muniCode: '3529401',
+    muniName: 'Mauá',
+    centerLat: -23.6678,
+    centerLon: -46.4614,
+    radiusKm: 2.5,
+    baseCount: 180,
+    streetNames: [
+      'Avenida Barão de Mauá', 'Avenida Portugal', 'Rua João Ramalho'
+    ]
+  },
+  {
+    name: 'Diadema - Centro e Piraporinha',
+    muniCode: '3513801',
+    muniName: 'Diadema',
+    centerLat: -23.6865,
+    centerLon: -46.6234,
+    radiusKm: 2.5,
+    baseCount: 180,
+    streetNames: [
+      'Avenida Fábio Eduardo Ramos Esquivel', 'Avenida Antonio Piranga', 'Rua Graciosa'
+    ]
+  },
+  {
+    name: 'Mogi das Cruzes - Centro',
+    muniCode: '3530607',
+    muniName: 'Mogi das Cruzes',
+    centerLat: -23.5222,
+    centerLon: -46.1883,
+    radiusKm: 3.0,
+    baseCount: 170,
+    streetNames: [
+      'Avenida Voluntário Fernando Pinheiro Franco', 'Rua Dr. Deodato Wertheimer'
+    ]
+  },
+  {
+    name: 'Barueri - Alphaville e Centro',
+    muniCode: '3505708',
+    muniName: 'Barueri',
+    centerLat: -23.5108,
+    centerLon: -46.8761,
+    radiusKm: 3.0,
+    baseCount: 190,
+    streetNames: [
+      'Alameda Rio Negro', 'Avenida Henriqueta Mendes Guerra', 'Avenida Alphaville'
+    ]
+  },
+  {
+    name: 'São Caetano do Sul - Centro e Bairro Jardim',
+    muniCode: '3548807',
+    muniName: 'São Caetano do Sul',
+    centerLat: -23.6228,
+    centerLon: -46.5547,
+    radiusKm: 2.0,
+    baseCount: 170,
+    streetNames: [
+      'Avenida Goiás', 'Rua Baraldi', 'Avenida Dr. Augusto de Toledo'
+    ]
   }
 ];
 
@@ -240,8 +417,16 @@ export async function seedOccurrencesIfEmpty(force = false): Promise<{ inserted:
       totalInserted += batch.length;
     }
 
-    console.log(`[SeedOccurrences] Concluído! Inseridas ${totalInserted} ocorrências georreferenciadas no PostgreSQL.`);
-    return { inserted: totalInserted, message: `Sucesso! Inseridas ${totalInserted} ocorrências georreferenciadas de SP.` };
+    console.log(`[SeedOccurrences] Concluído! Inseridas ${totalInserted} ocorrências georreferenciadas. Gerando indicadores municipalizados...`);
+
+    try {
+      const { SspIndicatorGenerator } = await import('../ingestion/adapters/ssp/SspIndicatorGenerator.js');
+      await SspIndicatorGenerator.generateIndicatorsFromOccurrences();
+    } catch (e) {
+      console.error('[SeedOccurrences] Erro ao gerar indicadores:', e);
+    }
+
+    return { inserted: totalInserted, message: `Sucesso! Inseridas ${totalInserted} ocorrências georreferenciadas de SP e indicadores atualizados.` };
   } catch (error: any) {
     console.error(`[SeedOccurrences] Erro ao popular:`, error);
     throw error;

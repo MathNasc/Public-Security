@@ -4,6 +4,7 @@ import { geographicMunicipalities, securityOccurrences, securityIndicators, data
 import { eq, and, sql, desc, or, gte, lte } from "drizzle-orm";
 import { TAXONOMY_VERSION, normalizeLegacyCategory, getCategoryGroup, normalizeLegacyCategoryFix, getCategoryGroupFix, CanonicalCategory, CategoryGroup } from './Taxonomy.js';
 import { StateRegistry } from '../ingestion/core/index.js';
+import { SspSpProvider } from '../ingestion/providers/sp/SspSpProvider.js';
 import { getPrimarySource } from '../ingestion/pipeline/SourcePriority.js';
 import { GeoNormalizationService } from './GeoNormalizationService.js';
 import { getBoundingBox, haversineDistance } from '../lib/geo.js';
@@ -226,9 +227,16 @@ export class SafetyAnalysisService {
         `Não foi possível identificar a unidade federativa (UF) para as coordenadas informadas.`
       );
     }
-    const stateCode = geoId.stateAcronym.toUpperCase().trim();
-    const provider = StateRegistry.resolveProviderByState(stateCode);
-    if (!provider) {
+    const stateCode = geoId.stateAcronym ? geoId.stateAcronym.toUpperCase().trim() : 'SP';
+    let provider = StateRegistry.resolveProviderByState(stateCode);
+    if (!provider && stateCode === 'SP') {
+      try {
+        provider = new SspSpProvider();
+        StateRegistry.register(provider);
+      } catch {}
+    }
+
+    if (!provider && stateCode !== 'SP') {
       return this.emptyResult(
         startDate,
         endDate,
@@ -239,7 +247,7 @@ export class SafetyAnalysisService {
       );
     }
 
-    const primarySourceId = stateCode === 'SP' ? 'SSP-SP' : (provider.stateCode ? `SSP-${provider.stateCode}` : provider.providerName);
+    const primarySourceId = stateCode === 'SP' ? 'SSP-SP' : (provider?.stateCode ? `SSP-${provider.stateCode}` : (provider?.providerName || `SSP-${stateCode}`));
 
     // 3. Busca de ocorrências exatas e indicadores municipais do StateProvider
     let indicators: IndicatorValue[] = [];
@@ -311,7 +319,7 @@ export class SafetyAnalysisService {
         periodString,
         radiusMeters,
         geoId,
-        `Sem registros criminais oficiais encontrados na base da SSP-SP para ${geoId.municipalityName} - ${geoId.stateAcronym} no período selecionado.`
+        `Sem registros criminais oficiais registrados na base para ${geoId.municipalityName} - ${geoId.stateAcronym} no período selecionado.`
       );
     }
 
@@ -841,6 +849,7 @@ export class SafetyAnalysisService {
             eq(securityOccurrences.stateCode, geoId.stateAcronym),
             or(
               sql`${securityOccurrences.municipalityName} IS NULL`,
+              eq(securityOccurrences.municipalityCode, geoId.ibgeCode),
               eq(sql`UPPER(${securityOccurrences.municipalityName})`, geoId.municipalityName.toUpperCase()),
               eq(securityOccurrences.municipalityName, geoId.ibgeCode)
             ),
