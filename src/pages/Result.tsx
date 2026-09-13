@@ -322,11 +322,11 @@ export function Result() {
   const fallback = data.fallback || data.result?.fallback;
 
   return (
-    <div className="px-4 py-8 max-w-5xl mx-auto space-y-8 relative">
+    <div className="px-2 sm:px-4 py-6 sm:py-8 max-w-5xl mx-auto space-y-6 sm:space-y-8 relative w-full max-w-full overflow-x-hidden min-w-0">
       <div className='absolute inset-0 opacity-10 pointer-events-none -z-10' style={{ backgroundImage: "radial-gradient(circle at 2px 2px, #475569 1px, transparent 0)", backgroundSize: "40px 40px" }}></div>
 
       {/* Header com Identificação Geográfica */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 w-full max-w-full min-w-0 overflow-hidden">
         <div>
           <h1 className="text-2xl font-bold text-white mb-1 flex items-center gap-2">
             <MapPin className="w-6 h-6 text-amber-500" />
@@ -406,14 +406,14 @@ export function Result() {
       )}
 
       {/* Filtros */}
-      <div className="bg-slate-800 rounded-2xl p-4 shadow-xl border border-slate-700/50 flex flex-col md:flex-row gap-4 items-start md:items-center mb-8">
+      <div className="bg-slate-800 rounded-2xl p-4 shadow-xl border border-slate-700/50 flex flex-col md:flex-row gap-4 items-start md:items-center mb-8 w-full max-w-full min-w-0 overflow-hidden">
         {/* Filtro Período */}
-        <div className="flex flex-col sm:flex-row w-full md:w-auto items-start sm:items-center gap-3">
+        <div className="flex flex-col sm:flex-row w-full md:w-auto items-start sm:items-center gap-3 min-w-0">
           <label htmlFor="period-select" className="text-slate-400 text-sm font-medium whitespace-nowrap">
             Período:
           </label>
-          <div className="flex flex-row w-full sm:w-auto gap-3">
-            <div className="relative flex-1 sm:flex-none">
+          <div className="flex flex-row w-full sm:w-auto gap-3 min-w-0">
+            <div className="relative flex-1 sm:flex-none min-w-0">
               <select
                 id="period-select"
                 value={showCustomYear ? 'custom' : period}
@@ -462,12 +462,12 @@ export function Result() {
         </div>
 
         {/* Filtro Raio */}
-        <div className="flex flex-col sm:flex-row w-full md:w-auto items-start sm:items-center gap-3">
+        <div className="flex flex-col sm:flex-row w-full md:w-auto items-start sm:items-center gap-3 min-w-0">
           <label htmlFor="radius-select" className="text-slate-400 text-sm font-medium whitespace-nowrap flex items-center">
             Raio de Consulta:
             <InfoTooltip text={data.radius?.applied ? `Raio de ${radius}m aplicado diretamente às coordenadas.` : `A fonte oficial não possui microdados no raio de ${radius}m; agregando indicadores municipais.`} />
           </label>
-          <div className="relative w-full sm:w-auto">
+          <div className="relative w-full sm:w-auto min-w-0">
             <select
               id="radius-select"
               value={radius}
@@ -497,14 +497,14 @@ export function Result() {
 
       {/* Regra Obrigatória: Alerta de Dados Insuficientes (Score Nulo, NUNCA Zero) */}
       {isInsufficient && (
-        <div className="bg-amber-950/30 border border-amber-800/60 rounded-2xl p-5 text-xs text-amber-200 flex items-start gap-3 shadow-lg">
+        <div className="bg-amber-950/30 border border-amber-800/60 rounded-2xl p-4 sm:p-5 text-xs text-amber-200 flex items-start gap-3 shadow-lg w-full max-w-full min-w-0 overflow-hidden">
           <AlertTriangle className="w-6 h-6 text-amber-400 shrink-0 mt-0.5" />
-          <div className="space-y-1.5">
-            <span className="font-bold text-amber-300 block text-sm">Diretriz de Integridade: Ausência de Registros Oficiais</span>
-            <p className="leading-relaxed text-slate-300">
+          <div className="space-y-1.5 min-w-0 flex-1">
+            <span className="font-bold text-amber-300 block text-sm leading-snug">Diretriz de Integridade: Ausência de Registros Oficiais</span>
+            <p className="leading-relaxed text-slate-300 break-words">
               {data.dataAbsenceNotice || "Ausência de dados não pode ser interpretada como ausência de crimes. A indisponibilidade de registros reflete falta de cobertura cadastral ou dados não divulgados pelo órgão responsável no período selecionado."}
             </p>
-            <p className="text-amber-400 font-medium text-[11px]">
+            <p className="text-amber-400 font-medium text-[11px] break-words">
               O Safety Score permanece nulo (-) para preservar o rigor estatístico e evitar falsa sensação de segurança.
             </p>
           </div>
@@ -512,7 +512,7 @@ export function Result() {
       )}
 
       {/* Score & Mapa */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-full min-w-0 overflow-hidden">
         <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className={cn("md:col-span-1 rounded-2xl p-6 border flex flex-col justify-center", bgScore)}>
           <div className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-4 flex items-center">
             Safety Score

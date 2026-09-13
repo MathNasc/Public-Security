@@ -28,14 +28,14 @@ function HeaderNav() {
 export default function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-slate-950 text-slate-200 font-sans flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] select-none md:select-auto">
+      <div className="min-h-screen bg-slate-950 text-slate-200 font-sans flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] select-none md:select-auto overflow-x-hidden w-full max-w-full">
         <OfflineIndicator />
 
         {/* Compact Header */}
-        <header className="bg-slate-900/90 border-b border-slate-800/80 px-4 py-2.5 sticky top-0 z-40 backdrop-blur-xl shadow-lg pt-[max(0.625rem,env(safe-area-inset-top))]">
-          <div className="max-w-6xl mx-auto flex items-center justify-between">
-            <Link to="/" className="text-lg font-bold tracking-tight text-white flex items-center gap-2 touch-manipulation">
-              <div className="w-8 h-8 bg-amber-500 rounded-xl flex items-center justify-center text-slate-950 font-black shadow-md shadow-amber-500/20">PS</div>
+        <header className="bg-slate-900/90 border-b border-slate-800/80 px-4 py-2.5 sticky top-0 z-40 backdrop-blur-xl shadow-lg pt-[max(0.625rem,env(safe-area-inset-top))] w-full max-w-full">
+          <div className="max-w-6xl mx-auto flex items-center justify-between min-w-0">
+            <Link to="/" className="text-lg font-bold tracking-tight text-white flex items-center gap-2 touch-manipulation min-w-0">
+              <div className="w-8 h-8 bg-amber-500 rounded-xl flex items-center justify-center text-slate-950 font-black shadow-md shadow-amber-500/20 shrink-0">PS</div>
               <span className="truncate">Public Security</span>
             </Link>
 
@@ -43,14 +43,14 @@ export default function App() {
             <HeaderNav />
 
             {/* Install Button & Mobile Quick Actions */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 shrink-0">
               <PWAInstallButton />
             </div>
           </div>
         </header>
 
         {/* Main Content Area */}
-        <main className="flex-1 w-full max-w-6xl mx-auto pb-20 md:pb-8">
+        <main className="flex-1 w-full max-w-6xl mx-auto pb-20 md:pb-8 overflow-x-hidden min-w-0 px-2 sm:px-4">
           <Suspense fallback={<div className="p-8 text-center text-slate-400 flex flex-col items-center justify-center min-h-[40vh] gap-3">
             <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
             <span className="text-sm font-medium">Carregando aplicação...</span>
