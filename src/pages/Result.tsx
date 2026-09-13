@@ -5,7 +5,7 @@ import { MapContainer, TileLayer, Circle, CircleMarker, Tooltip, Popup } from "r
 import { 
   ShieldCheck, ShieldAlert, Shield, AlertTriangle, MapPin, Activity, Search, Database, 
   GitCompare, BarChart3, Info, AlertCircle, FileText, Layers, Crosshair, Copy, Check,
-  Calendar, Clock, Building2, Car, ExternalLink, ListFilter
+  Calendar, Clock, Building2, Car, ExternalLink, ListFilter, RotateCcw, X
 } from "lucide-react";
 import * as motion from "motion/react-client";
 import { cn } from '../lib/utils.js';
@@ -867,6 +867,44 @@ export function Result() {
         </>
       )}
 
+      {/* Painel Informativo de Zero Ocorrências Registradas para o Período Selecionado */}
+      {(isInsufficient || (data.exactOccurrences?.length === 0 && (data.statistics?.total || 0) === 0)) && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 md:p-8 text-center space-y-4 shadow-xl"
+        >
+          <div className="w-12 h-12 bg-slate-800/80 rounded-full flex items-center justify-center mx-auto text-amber-500 border border-slate-700">
+            <Calendar className="w-6 h-6 text-amber-400" />
+          </div>
+          <div className="space-y-1.5 max-w-lg mx-auto">
+            <h3 className="text-base font-bold text-slate-200">
+              Nenhuma ocorrência oficial registrada no período {period.match(/^\d{4}$/) ? `de ${period}` : 'selecionado'}
+            </h3>
+            <p className="text-xs md:text-sm text-slate-400 leading-relaxed">
+              Não constam boletins de ocorrência registrados no raio de {radius}m ao redor destas coordenadas durante {data.period?.label || period}. A ausência de registros oficiais reflete a janela temporal selecionada ou limites de publicação e não deve ser interpretada como inexistência de crimes.
+            </p>
+          </div>
+          <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => handleFilterChange('period', '12m')}
+              className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Ver Último Ano (12 Meses)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleFilterChange('period', 'all')}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl text-xs font-medium transition-colors cursor-pointer"
+            >
+              Ver Todo o Histórico
+            </button>
+          </div>
+        </motion.div>
+      )}
+
       {/* Tabela / Lista Interativa de Ocorrências Pontuais com Coordenadas */}
       {(data.exactOccurrences?.length || 0) > 0 && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-slate-900/40 border border-slate-800 rounded-2xl p-6 space-y-4">
@@ -894,85 +932,102 @@ export function Result() {
             </div>
           </div>
 
-          {/* Grid de Cards de Ocorrências */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[420px] overflow-y-auto pr-1">
-            {filteredOccurrences.map((occ: any, idx: number) => {
-              const details = getCategoryDetails(occ.category, occ.sourceCategory);
-              const isSelected = activePin?.id === occ.id || (activePin?.latitude === occ.latitude && activePin?.longitude === occ.longitude);
+          {/* Grid de Cards de Ocorrências ou Estado Vazio */}
+          {filteredOccurrences.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[420px] overflow-y-auto pr-1">
+              {filteredOccurrences.map((occ: any, idx: number) => {
+                const details = getCategoryDetails(occ.category, occ.sourceCategory);
+                const isSelected = activePin?.id === occ.id || (activePin?.latitude === occ.latitude && activePin?.longitude === occ.longitude);
 
-              return (
-                <div
-                  key={occ.id || idx}
-                  onClick={() => setActivePin(occ)}
-                  className={cn(
-                    "p-3.5 rounded-xl border text-xs transition-all cursor-pointer flex flex-col justify-between space-y-2",
-                    isSelected 
-                      ? "bg-slate-800/90 border-amber-500 shadow-lg ring-1 ring-amber-500/50" 
-                      : "bg-slate-900/60 border-slate-800 hover:bg-slate-800/60 hover:border-slate-700"
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded border", details.bgClass)}>
-                      {details.label}
-                    </span>
-                    {occ.boNumber && (
-                      <span className="font-mono text-[10px] text-slate-400 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">
-                        BO: {occ.boNumber}{occ.boYear ? `/${occ.boYear}` : ''}
+                return (
+                  <div
+                    key={occ.id || idx}
+                    onClick={() => setActivePin(occ)}
+                    className={cn(
+                      "p-3.5 rounded-xl border text-xs transition-all cursor-pointer flex flex-col justify-between space-y-2",
+                      isSelected 
+                        ? "bg-slate-800/90 border-amber-500 shadow-lg ring-1 ring-amber-500/50" 
+                        : "bg-slate-900/60 border-slate-800 hover:bg-slate-800/60 hover:border-slate-700"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded border", details.bgClass)}>
+                        {details.label}
                       </span>
-                    )}
-                  </div>
-
-                  <div>
-                    <div className="font-semibold text-slate-200 leading-snug truncate" title={occ.sourceCategory}>
-                      {occ.sourceCategory || details.label}
-                    </div>
-                    {occ.subcategory && (
-                      <div className="text-[11px] text-slate-400 truncate mt-0.5">
-                        {occ.subcategory}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-1 text-[11px] text-slate-400 border-t border-slate-800/80 pt-2">
-                    {occ.address && (
-                      <div className="flex items-start gap-1.5 truncate">
-                        <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
-                        <span className="truncate">{occ.address}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between text-[10px] text-slate-500">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-slate-500" />
-                        {occ.date ? new Date(occ.date).toLocaleDateString('pt-BR') : 'Data n/d'}
-                      </span>
-                      {occ.time && (
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-slate-500" />
-                          {occ.time}
+                      {occ.boNumber && (
+                        <span className="font-mono text-[10px] text-slate-400 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">
+                          BO: {occ.boNumber}{occ.boYear ? `/${occ.boYear}` : ''}
                         </span>
                       )}
                     </div>
-                  </div>
 
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-800/50 text-[10px]">
-                    <span className="text-slate-500 font-mono">
-                      {occ.latitude.toFixed(4)}, {occ.longitude.toFixed(4)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActivePin(occ);
-                      }}
-                      className="text-amber-400 hover:text-amber-300 font-medium"
-                    >
-                      {isSelected ? "Focado no Mapa ✓" : "Ver no Mapa →"}
-                    </button>
+                    <div>
+                      <div className="font-semibold text-slate-200 leading-snug truncate" title={occ.sourceCategory}>
+                        {occ.sourceCategory || details.label}
+                      </div>
+                      {occ.subcategory && (
+                        <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                          {occ.subcategory}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-1 text-[11px] text-slate-400 border-t border-slate-800/80 pt-2">
+                      {occ.address && (
+                        <div className="flex items-start gap-1.5 truncate">
+                          <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
+                          <span className="truncate">{occ.address}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between text-[10px] text-slate-500">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-slate-500" />
+                          {occ.date ? new Date(occ.date).toLocaleDateString('pt-BR') : 'Data n/d'}
+                        </span>
+                        {occ.time && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-slate-500" />
+                            {occ.time}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-800/50 text-[10px]">
+                      <span className="text-slate-500 font-mono">
+                        {occ.latitude.toFixed(4)}, {occ.longitude.toFixed(4)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActivePin(occ);
+                        }}
+                        className="text-amber-400 hover:text-amber-300 font-medium"
+                      >
+                        {isSelected ? "Focado no Mapa ✓" : "Ver no Mapa →"}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="py-8 px-4 text-center text-slate-400 space-y-2 bg-slate-950/40 rounded-xl border border-slate-800/60">
+              <AlertCircle className="w-8 h-8 text-amber-500/60 mx-auto" />
+              <p className="text-sm font-medium text-slate-300">Nenhuma ocorrência corresponde aos filtros ativos</p>
+              <p className="text-xs text-slate-500">
+                Há {data.exactOccurrences.length} ocorrências registradas no raio de {radius}m, mas nenhuma corresponde à categoria ou busca informada.
+              </p>
+              <button
+                type="button"
+                onClick={() => { setSelectedCategoryFilter("all"); setOccurrenceSearch(""); }}
+                className="mt-2 inline-flex items-center gap-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 px-3.5 py-2 rounded-lg border border-slate-700 font-semibold transition-colors cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" /> Limpar Filtros de Ocorrências
+              </button>
+            </div>
+          )}
         </motion.div>
       )}
 
