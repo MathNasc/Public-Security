@@ -364,14 +364,14 @@ async function runPhase5Audit() {
   await test('StructuredLogger sanitiza automaticamente senhas e connection strings', () => {
     const log = StructuredLogger.info('Teste de conexão', {
       jobId: 'job-999',
-      connectionString: 'postgres://user:supersecretpassword@localhost:5432/radar',
-      apiKey: 'secret_api_key_123',
+      connectionString: 'postgres://db_user:masked_password_sample@localhost:5432/radar',
+      apiKey: 'sample_api_key',
       stage: 'test_stage'
     });
 
     assert.strictEqual(log.jobId, 'job-999');
     assert.strictEqual(log.apiKey, '***');
-    assert(!JSON.stringify(log).includes('supersecretpassword'));
+    assert(!JSON.stringify(log).includes('masked_password_sample'));
   });
 
   // -----------------------------------------------------------------------------------
