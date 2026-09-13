@@ -803,6 +803,121 @@ if (useLibsqlFallback) {
 
   queryClientInstance = postgres(connectionString, { max: 10, idle_timeout: 10, connect_timeout: 10 });
   dbInstance = drizzlePg(queryClientInstance, { schema });
+
+  // Auto-inicialização assíncrona de tabelas essenciais e municípios no PostgreSQL
+  (async () => {
+    try {
+      await queryClientInstance`
+        CREATE TABLE IF NOT EXISTS geographic_states (
+          code VARCHAR(2) PRIMARY KEY,
+          acronym VARCHAR(2) NOT NULL UNIQUE,
+          name VARCHAR(100) NOT NULL,
+          region VARCHAR(50) NOT NULL
+        );
+      `;
+
+      await queryClientInstance`
+        CREATE TABLE IF NOT EXISTS geographic_municipalities (
+          code VARCHAR(7) PRIMARY KEY,
+          state_code VARCHAR(2) NOT NULL,
+          state_acronym VARCHAR(2) NOT NULL,
+          name VARCHAR(150) NOT NULL,
+          normalized_name VARCHAR(150) NOT NULL,
+          population INTEGER,
+          latitude NUMERIC(10, 7),
+          longitude NUMERIC(10, 7),
+          geom TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `;
+
+      await queryClientInstance`
+        CREATE INDEX IF NOT EXISTS muni_state_idx ON geographic_municipalities(state_acronym);
+        CREATE INDEX IF NOT EXISTS muni_norm_name_idx ON geographic_municipalities(normalized_name);
+        CREATE INDEX IF NOT EXISTS muni_coords_idx ON geographic_municipalities(latitude, longitude);
+      `;
+
+      const statesCount = await queryClientInstance`SELECT count(*)::int as count FROM geographic_states`;
+      if (statesCount[0]?.count === 0) {
+        console.log('[PostgreSQL] Populando 27 estados da federação...');
+        const statesData = [
+          ['11', 'RO', 'Rondônia', 'Norte'], ['12', 'AC', 'Acre', 'Norte'], ['13', 'AM', 'Amazonas', 'Norte'],
+          ['14', 'RR', 'Roraima', 'Norte'], ['15', 'PA', 'Pará', 'Norte'], ['16', 'AP', 'Amapá', 'Norte'],
+          ['17', 'TO', 'Tocantins', 'Norte'], ['21', 'MA', 'Maranhão', 'Nordeste'], ['22', 'PI', 'Piauí', 'Nordeste'],
+          ['23', 'CE', 'Ceará', 'Nordeste'], ['24', 'RN', 'Rio Grande do Norte', 'Nordeste'], ['25', 'PB', 'Paraíba', 'Nordeste'],
+          ['26', 'PE', 'Pernambuco', 'Nordeste'], ['27', 'AL', 'Alagoas', 'Nordeste'], ['28', 'SE', 'Sergipe', 'Nordeste'],
+          ['29', 'BA', 'Bahia', 'Nordeste'], ['31', 'MG', 'Minas Gerais', 'Sudeste'], ['32', 'ES', 'Espírito Santo', 'Sudeste'],
+          ['33', 'RJ', 'Rio de Janeiro', 'Sudeste'], ['35', 'SP', 'São Paulo', 'Sudeste'], ['41', 'PR', 'Paraná', 'Sul'],
+          ['42', 'SC', 'Santa Catarina', 'Sul'], ['43', 'RS', 'Rio Grande do Sul', 'Sul'], ['50', 'MS', 'Mato Grosso do Sul', 'Centro-Oeste'],
+          ['51', 'MT', 'Mato Grosso', 'Centro-Oeste'], ['52', 'GO', 'Goiás', 'Centro-Oeste'], ['53', 'DF', 'Distrito Federal', 'Centro-Oeste']
+        ];
+        for (const s of statesData) {
+          await queryClientInstance`
+            INSERT INTO geographic_states (code, acronym, name, region)
+            VALUES (${s[0]}, ${s[1]}, ${s[2]}, ${s[3]})
+            ON CONFLICT (code) DO NOTHING
+          `;
+        }
+      }
+
+      const munisCount = await queryClientInstance`SELECT count(*)::int as count FROM geographic_municipalities`;
+      if (munisCount[0]?.count === 0) {
+        console.log('[PostgreSQL] Populando municípios e capitais do Brasil...');
+        // Inserir capitais e municípios principais
+        const munisToInsert = [
+          ['1100205', '11', 'RO', 'Porto Velho', 'porto velho', 548952, -8.7619, -63.9039],
+          ['1200401', '12', 'AC', 'Rio Branco', 'rio branco', 419231, -9.9753, -67.8105],
+          ['1302603', '13', 'AM', 'Manaus', 'manaus', 2063547, -3.1190, -60.0217],
+          ['1400100', '14', 'RR', 'Boa Vista', 'boa vista', 413486, 2.8235, -60.6758],
+          ['1501402', '15', 'PA', 'Belém', 'belem', 1303389, -1.4558, -48.4902],
+          ['1600303', '16', 'AP', 'Macapá', 'macapa', 442933, 0.0389, -51.0664],
+          ['1721000', '17', 'TO', 'Palmas', 'palmas', 302692, -10.1844, -48.3336],
+          ['2111300', '21', 'MA', 'São Luís', 'sao luis', 1037775, -2.5307, -44.3068],
+          ['2211001', '22', 'PI', 'Teresina', 'teresina', 866300, -5.0920, -42.8038],
+          ['2304400', '23', 'CE', 'Fortaleza', 'fortaleza', 2428678, -3.7319, -38.5267],
+          ['2408102', '24', 'RN', 'Natal', 'natal', 751300, -5.7945, -35.2110],
+          ['2507507', '25', 'PB', 'João Pessoa', 'joao pessoa', 833932, -7.1195, -34.8450],
+          ['2611606', '26', 'PE', 'Recife', 'recife', 1488920, -8.0476, -34.8770],
+          ['2704302', '27', 'AL', 'Maceió', 'maceio', 957916, -9.6658, -35.7353],
+          ['2800308', '28', 'SE', 'Aracaju', 'aracaju', 602757, -10.9472, -37.0731],
+          ['2927408', '29', 'BA', 'Salvador', 'salvador', 2418005, -12.9777, -38.5016],
+          ['3106200', '31', 'MG', 'Belo Horizonte', 'belo horizonte', 2315560, -19.9208, -43.9378],
+          ['3205309', '32', 'ES', 'Vitória', 'vitoria', 322869, -20.3155, -40.3128],
+          ['3304557', '33', 'RJ', 'Rio de Janeiro', 'rio de janeiro', 6211423, -22.9068, -43.1729],
+          ['3550308', '35', 'SP', 'São Paulo', 'sao paulo', 11451245, -23.5505, -46.6333],
+          ['3509502', '35', 'SP', 'Campinas', 'campinas', 1139047, -22.9056, -47.0608],
+          ['3518800', '35', 'SP', 'Guarulhos', 'guarulhos', 1291771, -23.4542, -46.5333],
+          ['3548708', '35', 'SP', 'São Bernardo do Campo', 'sao bernardo do campo', 810729, -23.6914, -46.5646],
+          ['3547809', '35', 'SP', 'Santo André', 'santo andre', 748919, -23.6572, -46.5333],
+          ['3548807', '35', 'SP', 'São Caetano do Sul', 'sao caetano do sul', 165655, -23.6229, -46.5544],
+          ['3534401', '35', 'SP', 'Osasco', 'osasco', 728615, -23.5325, -46.7917],
+          ['3549904', '35', 'SP', 'São José dos Campos', 'sao jose dos campos', 697054, -23.1794, -45.8869],
+          ['3543402', '35', 'SP', 'Ribeirão Preto', 'ribeirao preto', 698642, -21.1767, -47.8108],
+          ['3552205', '35', 'SP', 'Sorocaba', 'sorocaba', 723682, -23.5017, -47.4581],
+          ['3548500', '35', 'SP', 'Santos', 'santos', 418608, -23.9608, -46.3336],
+          ['4106902', '41', 'PR', 'Curitiba', 'curitiba', 1773733, -25.4290, -49.2671],
+          ['4205407', '42', 'SC', 'Florianópolis', 'florianopolis', 537213, -27.5954, -48.5480],
+          ['4314902', '43', 'RS', 'Porto Alegre', 'porto alegre', 1332570, -30.0346, -51.2177],
+          ['5002704', '50', 'MS', 'Campo Grande', 'campo grande', 897938, -20.4697, -54.6201],
+          ['5103403', '51', 'MT', 'Cuiabá', 'cuiaba', 650912, -15.6014, -56.0979],
+          ['5208707', '52', 'GO', 'Goiânia', 'goiania', 1437237, -16.6869, -49.2648],
+          ['5300108', '53', 'DF', 'Brasília', 'brasilia', 2817068, -15.7942, -47.8822]
+        ];
+
+        for (const m of munisToInsert) {
+          await queryClientInstance`
+            INSERT INTO geographic_municipalities (code, state_code, state_acronym, name, normalized_name, population, latitude, longitude)
+            VALUES (${m[0]}, ${m[1]}, ${m[2]}, ${m[3]}, ${m[4]}, ${m[5]}, ${m[6]}, ${m[7]})
+            ON CONFLICT (code) DO NOTHING
+          `;
+        }
+        console.log('[PostgreSQL] Seed inicial de municípios concluído com sucesso.');
+      }
+    } catch (e: any) {
+      console.warn('[PostgreSQL] Aviso ao verificar/popular tabelas iniciais:', e.message);
+    }
+  })();
 }
 
 export const queryClient = queryClientInstance;
