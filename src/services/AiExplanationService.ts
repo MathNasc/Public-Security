@@ -96,6 +96,13 @@ REGRAS RÍGIDAS DE ESCOPO E SEGURANÇA:
      "Como assistente oficial do Public Security, meu papel é estritamente explicar e analisar os indicadores de segurança pública oficiais e consolidados. Não realizo tarefas fora do escopo de análise estatística de segurança pública."
    - Se perguntado sobre uma região sem cobertura ou sem dados:
      "Não foram localizados registros criminais oficiais consolidados para a localização e período solicitados. Ressalta-se que a ausência de registros oficiais não deve ser interpretada como ausência de ocorrências ou garantia de segurança, podendo refletir subnotificação ou falta de disponibilização por parte dos órgãos oficiais locais."
+
+4. FORMATO E ESTILO OBRIGATÓRIO DA RESPOSTA:
+   - Escreva a resposta em português do Brasil claro, natural, fluído e objetivo.
+   - NUNCA inclua títulos genéricos em inglês como "**Relatório Explicativo... — Public Security**".
+   - NUNCA insira linhas separadoras brutas ("---").
+   - NUNCA exiba termos de código técnico como \`null\`, (\`null\`), undefined ou "Não calculated". Se um indicador não puder ser calculado, escreva "Não calculado (dados insuficientes)".
+   - Mantenha uma formatação limpa, direta ao ponto e agradável de ler.
 `;
 
 export class AiExplanationService {
@@ -124,6 +131,18 @@ export class AiExplanationService {
       violations.push('Prompt injection or jailbreak attempt detected in user query');
       response = 'Como assistente oficial do Public Security, meu papel é estritamente explicar e analisar os indicadores de segurança pública oficiais e consolidados. Não realizo tarefas fora do escopo de análise estatística de segurança pública.';
     }
+
+    // Limpeza e sanitização de marcações e código bruto (ex: `null`, ---, títulos redundantes)
+    response = response
+      .replace(/^\s*\*\*Relatório Explicativo[^*]*\*\*\s*/gi, '')
+      .replace(/^\s*#+\s*Relatório[^\n]*/gi, '')
+      .replace(/^\s*---\s*$/gm, '')
+      .replace(/\(`null`\)/gi, '')
+      .replace(/`null`/gi, 'Não calculado')
+      .replace(/\bnull\b/gi, 'não calculado')
+      .replace(/Score de Segurança:\s*Não calculado\s*\([^)]*\)/gi, 'Score de Segurança: Não calculado')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
 
     // 1. Detecção de Prompt Leakage / Revelação de Instruções Internas
     if (
@@ -331,7 +350,7 @@ ${context.userQuery ? `PERGUNTA / SOLICITAÇÃO DO USUÁRIO:\n"${context.userQue
     const state = context.location?.state || 'BR';
     const total = context.indicators.reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
     const primarySource = context.sources?.[0]?.name || 'Secretaria de Segurança Pública';
-    const scoreVal = context.score?.value !== null && context.score?.value !== undefined ? `${context.score.value}/100 (${context.score.classification})` : 'Não calculated';
+    const scoreVal = context.score?.value !== null && context.score?.value !== undefined ? `${context.score.value}/100 (${context.score.classification})` : 'Não calculado';
 
     let msg = `Análise de indicadores consolidados para ${city} - ${state} (${context.period?.label || 'período recente'}).\n\n`;
     msg += `• Pontuação de Atenção: ${scoreVal}\n`;

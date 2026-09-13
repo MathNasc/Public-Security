@@ -38,6 +38,7 @@ import fs from "fs";
 import os from "os";
 import { seedOccurrencesIfEmpty } from './src/db/seedOccurrences.js';
 import { db } from "./src/db/index.js";
+import { extractRows } from './src/db/extractRows.js';
 import { getBoundingBox, haversineDistance } from "./src/lib/geo.js";
 import axios from "axios";
 
@@ -137,15 +138,19 @@ app.get("/api/dashboard/summary", async (req, res) => {
     const byStateRaw = await db.execute(sql`SELECT state_code, SUM(value) as val FROM security_indicators WHERE ${filterClause} AND state_code IS NOT NULL GROUP BY state_code ORDER BY val DESC`);
     const byTrendRaw = await db.execute(sql`SELECT period, SUM(value) as val FROM security_indicators WHERE ${filterClause} GROUP BY period ORDER BY period ASC`);
     
+    const categoryRows = extractRows(byCategoryRaw);
+    const stateRows = extractRows(byStateRaw);
+    const trendRows = extractRows(byTrendRaw);
+
     let total = 0;
-    const categoryData = (byCategoryRaw as any[]).map((r: any) => { 
-      const v = Number(r.val);
+    const categoryData = categoryRows.map((r: any) => { 
+      const v = Number(r.val || r.VAL || 0);
       total += v;
-      return { name: r.category, value: v }; 
+      return { name: r.category || r.CATEGORY, value: v }; 
     });
     
-    const stateData = (byStateRaw as any[]).map((r: any) => ({ name: r.state_code, value: Number(r.val) }));
-    const trendData = (byTrendRaw as any[]).map((r: any) => ({ name: r.period, value: Number(r.val) }));
+    const stateData = stateRows.map((r: any) => ({ name: r.state_code || r.STATE_CODE, value: Number(r.val || r.VAL || 0) }));
+    const trendData = trendRows.map((r: any) => ({ name: r.period || r.PERIOD, value: Number(r.val || r.VAL || 0) }));
     
     res.json({
       total,
@@ -355,7 +360,7 @@ app.get("/api/map/occurrences", publicApiLimiter, async (req, res) => {
       const bMaxLat = parseFloat(String(maxLat));
       const bMaxLon = parseFloat(String(maxLon));
 
-      candidates = await db.execute(sql`
+      const raw = await db.execute(sql`
         SELECT id, category, subcategory, source_category, source_record_id, municipality_name, original_address, source_data,
                latitude, longitude, occurred_at, year, month
         FROM ${securityOccurrences}
@@ -365,14 +370,15 @@ app.get("/api/map/occurrences", publicApiLimiter, async (req, res) => {
           ${category ? sql`AND (category = ${String(category)} OR source_category ILIKE ${'%' + String(category) + '%'})` : sql``}
         ORDER BY occurred_at DESC
         LIMIT ${maxLimit}
-      `) as any[];
+      `);
+      candidates = extractRows(raw);
     } else if (lat && lon) {
       const cLat = parseFloat(String(lat));
       const cLon = parseFloat(String(lon));
       const radMeters = Math.min(50000, Math.max(100, parseInt(String(radius), 10) || 2000));
       const bbox = getBoundingBox(cLat, cLon, radMeters);
 
-      const rawCandidates = await db.execute(sql`
+      const rawRes = await db.execute(sql`
         SELECT id, category, subcategory, source_category, source_record_id, municipality_name, original_address, source_data,
                latitude, longitude, occurred_at, year, month
         FROM ${securityOccurrences}
@@ -382,8 +388,9 @@ app.get("/api/map/occurrences", publicApiLimiter, async (req, res) => {
           ${category ? sql`AND (category = ${String(category)} OR source_category ILIKE ${'%' + String(category) + '%'})` : sql``}
         ORDER BY occurred_at DESC
         LIMIT 600
-      `) as any[];
+      `);
 
+      const rawCandidates = extractRows(rawRes);
       for (const row of rawCandidates) {
         if (row.latitude !== null && row.longitude !== null) {
           const dist = haversineDistance(cLat, cLon, Number(row.latitude), Number(row.longitude));
@@ -395,7 +402,7 @@ app.get("/api/map/occurrences", publicApiLimiter, async (req, res) => {
       }
     } else {
       // Retorna as ocorrências mais recentes com coordenadas
-      candidates = await db.execute(sql`
+      const raw = await db.execute(sql`
         SELECT id, category, subcategory, source_category, source_record_id, municipality_name, original_address, source_data,
                latitude, longitude, occurred_at, year, month
         FROM ${securityOccurrences}
@@ -404,7 +411,8 @@ app.get("/api/map/occurrences", publicApiLimiter, async (req, res) => {
           ${category ? sql`AND (category = ${String(category)} OR source_category ILIKE ${'%' + String(category) + '%'})` : sql``}
         ORDER BY occurred_at DESC
         LIMIT ${maxLimit}
-      `) as any[];
+      `);
+      candidates = extractRows(raw);
     }
 
     const occurrences = candidates.map(row => {

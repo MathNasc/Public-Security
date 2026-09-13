@@ -1,4 +1,5 @@
 import { db } from '../db/index.js';
+import { extractRows } from '../db/extractRows.js';
 import { geographicMunicipalities, securityOccurrences, securityIndicators, dataImports, dataSources } from '../db/schema.js';
 import { eq, and, sql, desc, or, gte, lte } from "drizzle-orm";
 import { TAXONOMY_VERSION, normalizeLegacyCategory, getCategoryGroup, normalizeLegacyCategoryFix, getCategoryGroupFix, CanonicalCategory, CategoryGroup } from './Taxonomy.js';
@@ -474,8 +475,9 @@ export class SafetyAnalysisService {
         WHERE ST_Contains(geom::geometry, ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326))
         LIMIT 1
       `);
-      if (muniResult && (muniResult as any[]).length > 0) {
-        const row = (muniResult as any[])[0];
+      const muniRows = extractRows(muniResult);
+      if (muniRows.length > 0) {
+        const row = muniRows[0];
         return {
           ...row,
           resolutionMethod: 'postgis_containment'
@@ -718,8 +720,9 @@ export class SafetyAnalysisService {
         ORDER BY occurred_at DESC
         LIMIT 600
       `);
-      if (results && (results as any[]).length > 0) {
-        const filteredPostGis = (results as any[])
+      const postGisRows = extractRows(results);
+      if (postGisRows.length > 0) {
+        const filteredPostGis = postGisRows
           .filter(row => {
             if (!row.occurred_at) return true;
             const occTime = new Date(row.occurred_at).getTime();
@@ -744,8 +747,9 @@ export class SafetyAnalysisService {
         LIMIT 1000
       `);
 
+      const candidateRows = extractRows(candidates);
       const filtered: ExactOccurrence[] = [];
-      for (const row of candidates as any[]) {
+      for (const row of candidateRows) {
         if (row.latitude !== null && row.longitude !== null) {
           const dist = haversineDistance(lat, lon, Number(row.latitude), Number(row.longitude));
           if (dist <= radiusMeters) {
@@ -850,7 +854,8 @@ export class SafetyAnalysisService {
       const map = new Map<string, any>();
 
       // Merge legacy indicators
-      for (const row of resultsIndicators as any[]) {
+      const indicatorRows = extractRows(resultsIndicators);
+      for (const row of indicatorRows) {
         const canonical = normalizeLegacyCategoryFix(row.category);
         if (!map.has(canonical)) {
           map.set(canonical, { val: 0, srcCat: row.source_category });
