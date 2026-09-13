@@ -212,6 +212,13 @@ export function Result() {
     if (!data?.exactOccurrences || !Array.isArray(data.exactOccurrences)) return [];
     
     return data.exactOccurrences.filter((occ: any) => {
+      // Validação estrita de coordenadas geográficas válidas
+      const occLat = Number(occ.latitude);
+      const occLon = Number(occ.longitude);
+      if (isNaN(occLat) || isNaN(occLon) || !isFinite(occLat) || !isFinite(occLon)) {
+        return false;
+      }
+
       // Filtro de categoria
       if (selectedCategoryFilter !== "all") {
         const cat = (occ.category || '').toLowerCase();
@@ -248,6 +255,28 @@ export function Result() {
     });
   }, [data?.exactOccurrences, selectedCategoryFilter, occurrenceSearch]);
 
+  const safeCenter: [number, number] = useMemo(() => {
+    const cLat = parseFloat(lat || "");
+    const cLon = parseFloat(lon || "");
+    if (!isNaN(cLat) && !isNaN(cLon) && isFinite(cLat) && isFinite(cLon)) {
+      return [cLat, cLon];
+    }
+    return [-23.5505, -46.6333];
+  }, [lat, lon]);
+
+  const center: [number, number] = safeCenter;
+  
+  const targetMapCenter: [number, number] = useMemo(() => {
+    if (activePin) {
+      const pLat = Number(activePin.latitude);
+      const pLon = Number(activePin.longitude);
+      if (!isNaN(pLat) && !isNaN(pLon) && isFinite(pLat) && isFinite(pLon)) {
+        return [pLat, pLon];
+      }
+    }
+    return safeCenter;
+  }, [activePin, safeCenter]);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
@@ -270,8 +299,6 @@ export function Result() {
     );
   }
 
-  const center: [number, number] = [parseFloat(lat), parseFloat(lon)];
-  
   let scoreColor = "text-green-400";
   let bgScore = "bg-slate-900/50 border-slate-800";
   let Icon = ShieldCheck;
@@ -750,7 +777,7 @@ export function Result() {
                 );
               })}
 
-              <MapUpdater center={activePin ? [activePin.latitude, activePin.longitude] : center} zoom={data.granularity === 'coordinate' ? 15 : 12} />
+              <MapUpdater center={targetMapCenter} zoom={data.granularity === 'coordinate' ? 15 : 12} />
             </MapContainer>
           </div>
 

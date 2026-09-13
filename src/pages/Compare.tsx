@@ -14,7 +14,8 @@ import {
   ArrowRightLeft, 
   Check, 
   X,
-  Sparkles
+  Sparkles,
+  AlertCircle
 } from "lucide-react";
 import * as motion from "motion/react-client";
 import { cn } from '../lib/utils.js';
@@ -88,6 +89,7 @@ export function Compare() {
   const [data2, setData2] = useState<any>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [geoError, setGeoError] = useState<string | null>(null);
 
   // Sync state with URL params
   useEffect(() => {
@@ -184,45 +186,55 @@ export function Compare() {
   };
 
   const handleGeolocate = (target: 1 | 2) => {
+    setGeoError(null);
     if (!navigator.geolocation) {
-      alert("Geolocalização não suportada no seu navegador.");
+      setGeoError("Geolocalização não suportada no seu navegador.");
       return;
     }
     const setLoading = target === 1 ? setGeoLoading1 : setGeoLoading2;
     setLoading(true);
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        let addr = "Minha Localização";
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`, {
-            headers: { 'User-Agent': 'PublicSecurity/1.0' }
-          });
-          const d = await res.json();
-          if (d.display_name) addr = d.display_name;
-        } catch (e) {
-          // ignore
-        }
+    try {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          let addr = "Minha Localização";
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`, {
+              headers: { 'User-Agent': 'PublicSecurity/1.0' }
+            });
+            const d = await res.json();
+            if (d.display_name) addr = d.display_name;
+          } catch {
+            // ignore
+          }
 
-        const newLoc = { address: addr, lat: latitude, lon: longitude };
-        if (target === 1) {
-          setLoc1(newLoc);
-          setQuery1(addr);
-          updateUrlParams(newLoc, loc2);
-        } else {
-          setLoc2(newLoc);
-          setQuery2(addr);
-          updateUrlParams(loc1, newLoc);
-        }
-        setLoading(false);
-      },
-      (err) => {
-        setLoading(false);
-        alert("Não foi possível acessar sua localização.");
-      },
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
+          const newLoc = { address: addr, lat: latitude, lon: longitude };
+          if (target === 1) {
+            setLoc1(newLoc);
+            setQuery1(addr);
+            updateUrlParams(newLoc, loc2);
+          } else {
+            setLoc2(newLoc);
+            setQuery2(addr);
+            updateUrlParams(loc1, newLoc);
+          }
+          setLoading(false);
+        },
+        (err) => {
+          setLoading(false);
+          if (err.code === 1 || err.message?.includes("permissions policy") || err.message?.includes("denied")) {
+            setGeoError("Geolocalização bloqueada pela política do navegador/iframe. Digite o endereço manualmente.");
+          } else {
+            setGeoError("Não foi possível acessar a localização automática. Digite o endereço manualmente.");
+          }
+        },
+        { enableHighAccuracy: false, timeout: 8000 }
+      );
+    } catch {
+      setLoading(false);
+      setGeoError("Geolocalização indisponível. Digite o endereço manualmente.");
+    }
   };
 
   const updateUrlParams = (l1: AddressLocation, l2: AddressLocation) => {
@@ -452,6 +464,24 @@ export function Compare() {
             )}
           </div>
         </div>
+
+        {/* Geolocation Notice if permission disabled */}
+        {geoError && (
+          <div className="bg-amber-950/40 border border-amber-800/60 rounded-xl p-3 flex items-center justify-between gap-2 text-xs text-amber-300">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+              <span>{geoError}</span>
+            </div>
+            <button 
+              type="button" 
+              onClick={() => setGeoError(null)} 
+              className="text-amber-400/70 hover:text-amber-300 p-0.5"
+              aria-label="Fechar aviso"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Popular Presets */}
         <div className="pt-4 border-t border-slate-800/80 space-y-2">
