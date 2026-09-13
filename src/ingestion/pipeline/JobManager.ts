@@ -1,18 +1,25 @@
+/**
+ * JobManager.ts
+ * Gerenciador de Ciclo de Vida de Jobs com Idempotência Estrita e Máquina de Estados Formal.
+ */
+
 import { db } from '../../db/index.js';
 import { dataImports } from '../../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import crypto from 'crypto';
+import { JobStateMachine, JobState } from '../core/index.js';
+import { StructuredLogger } from '../../lib/structuredLogger.js';
 
 export interface CreateJobResult {
   jobId: string;
   isDuplicate?: boolean;
-  status: string;
+  status: JobState | string;
 }
 
 export class JobManager {
   /**
    * Criação de Job com validação de Idempotência.
-   * Se um arquivo idêntico (mesmo checksum SHA-256) já foi importado com sucesso (COMPLETED),
+   * Se um arquivo idêntico (mesmo checksum SHA-256) já foi importado com sucesso (COMPLETED / succeeded),
    * não cria um job duplicado a menos que seja forçado (force: true).
    */
   static async createJob(params: {
@@ -47,11 +54,18 @@ export class JobManager {
         );
 
       if (existing.length > 0) {
-        console.log(`[JobManager] Arquivo duplicado detectado (checksum: ${params.checksum}). Reutilizando Job concluído: ${existing[0].id}`);
+        StructuredLogger.info(`Arquivo duplicado detectado (checksum: ${params.checksum}). Reutilizando Job concluído: ${existing[0].id}`, {
+          jobId: existing[0].id,
+          sourceId: params.sourceId,
+          stateCode: params.stateCode,
+          checksum: params.checksum,
+          stage: 'idempotency_check'
+        });
+
         return {
           jobId: existing[0].id,
           isDuplicate: true,
-          status: 'COMPLETED'
+          status: 'succeeded'
         };
       }
     }
@@ -90,6 +104,14 @@ export class JobManager {
       recordsWithUnknownMunicipality: 0,
       createdAt: new Date()
     });
+
+    StructuredLogger.info(`Novo Job ${jobId} criado com status 'pending'`, {
+      jobId,
+      sourceId: params.sourceId,
+      stateCode: params.stateCode,
+      checksum: params.checksum,
+      stage: 'job_creation'
+    });
     
     return {
       jobId,
@@ -103,15 +125,33 @@ export class JobManager {
     return jobs[0] || null;
   }
   
-  static async updateJobStatus(jobId: string, status: string, updates: Partial<typeof dataImports.$inferInsert> = {}) {
+  /**
+   * Atualização de status do Job com validação de transição de estado da máquina de estados.
+   */
+  static async updateJobStatus(jobId: string, nextStatus: string | JobState, updates: Partial<typeof dataImports.$inferInsert> = {}) {
+    const job = await this.getJob(jobId);
+    if (job) {
+      // Validação formal de transição de estado
+      JobStateMachine.assertTransition(job.status, nextStatus, jobId);
+    }
+
+    const normalizedStatus = JobStateMachine.normalize(nextStatus);
+    const dbStatus = JobStateMachine.toDbStatus(normalizedStatus);
+
     await db.update(dataImports)
-      .set({ status, ...updates })
+      .set({ status: dbStatus, ...updates })
       .where(eq(dataImports.id, jobId));
+
+    StructuredLogger.debug(`Status do Job ${jobId} atualizado para '${normalizedStatus}' (DB: ${dbStatus})`, {
+      jobId,
+      status: normalizedStatus,
+      stage: 'status_transition'
+    });
   }
 
   /**
    * Reprocessamento oficial de um Job existente.
-   * Reseta status para QUEUED, zera contadores e erros, permitindo re-execução segura pelo Worker.
+   * Reseta status para pending/QUEUED, zera contadores e erros, permitindo re-execução segura e idempotente pelo Worker.
    */
   static async reprocessJob(jobId: string): Promise<{ success: boolean; jobId: string; job?: any; error?: string }> {
     const job = await this.getJob(jobId);
@@ -142,9 +182,13 @@ export class JobManager {
       })
       .where(eq(dataImports.id, jobId));
 
-    console.log(`[JobManager] Job ${jobId} reinserido na fila para reprocessamento.`);
+    StructuredLogger.info(`Job ${jobId} reinserido na fila para reprocessamento idempotente.`, {
+      jobId,
+      sourceId: job.sourceId,
+      stage: 'job_reprocess'
+    });
+
     const updated = await this.getJob(jobId);
     return { success: true, jobId, job: updated };
   }
 }
-

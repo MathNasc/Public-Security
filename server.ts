@@ -4,6 +4,13 @@ import { eq, and, gte, lte, asc, sql, isNotNull, isNull, desc } from "drizzle-or
 import { globalScheduler } from './src/ingestion/orchestration/Scheduler.js';
 import { AutomationService } from "./src/services/AutomationService.js";
 import { PipelineAutomationService } from './src/ingestion/orchestration/PipelineAutomationService.js';
+import { StateRegistry } from './src/ingestion/core/index.js';
+import { SspSpProvider } from './src/ingestion/providers/sp/index.js';
+
+// Auto-registra o provedor oficial de São Paulo
+if (!StateRegistry.has('SP')) {
+  StateRegistry.register(new SspSpProvider());
+}
 
 import { analysisCache } from "./src/lib/cache.js";
 import { AutoDownloader } from './src/ingestion/orchestration/AutoDownloader.js';
@@ -116,9 +123,19 @@ app.get("/api/admin/data-quality", handleDataQuality);
 
 app.get("/api/dashboard/summary", async (req, res) => {
   try {
-    const byCategoryRaw = await db.execute(sql`SELECT category, SUM(value) as val FROM security_indicators WHERE UPPER(source_id) = 'SSP-SP' GROUP BY category ORDER BY val DESC`);
-    const byStateRaw = await db.execute(sql`SELECT state_code, SUM(value) as val FROM security_indicators WHERE UPPER(source_id) = 'SSP-SP' AND state_code IS NOT NULL GROUP BY state_code ORDER BY val DESC`);
-    const byTrendRaw = await db.execute(sql`SELECT period, SUM(value) as val FROM security_indicators WHERE UPPER(source_id) = 'SSP-SP' GROUP BY period ORDER BY period ASC`);
+    const stateParam = req.query.stateCode ? String(req.query.stateCode).toUpperCase().trim() : null;
+    const sourceParam = req.query.sourceId ? String(req.query.sourceId).toUpperCase().trim() : null;
+
+    let filterClause = sql`1=1`;
+    if (stateParam) {
+      filterClause = sql`UPPER(state_code) = ${stateParam}`;
+    } else if (sourceParam) {
+      filterClause = sql`UPPER(source_id) = ${sourceParam}`;
+    }
+
+    const byCategoryRaw = await db.execute(sql`SELECT category, SUM(value) as val FROM security_indicators WHERE ${filterClause} GROUP BY category ORDER BY val DESC`);
+    const byStateRaw = await db.execute(sql`SELECT state_code, SUM(value) as val FROM security_indicators WHERE ${filterClause} AND state_code IS NOT NULL GROUP BY state_code ORDER BY val DESC`);
+    const byTrendRaw = await db.execute(sql`SELECT period, SUM(value) as val FROM security_indicators WHERE ${filterClause} GROUP BY period ORDER BY period ASC`);
     
     let total = 0;
     const categoryData = (byCategoryRaw as any[]).map((r: any) => { 
@@ -315,12 +332,20 @@ app.get("/api/analysis", publicApiLimiter, async (req, res) => {
   }
 });
 
-// Endpoint dedicado para visualização espacial pontual de ocorrências SSP-SP no mapa
+// Endpoint dedicado para visualização espacial pontual de ocorrências no mapa
 app.get("/api/map/occurrences", publicApiLimiter, async (req, res) => {
   try {
-    const { lat, lon, radius = "2000", minLat, minLon, maxLat, maxLon, category, limit = "300" } = req.query;
+    const { lat, lon, radius = "2000", minLat, minLon, maxLat, maxLon, category, limit = "300", stateCode, sourceId } = req.query;
     const maxLimit = Math.min(1000, Math.max(1, parseInt(String(limit), 10) || 300));
-    const canonicalSource = 'SSP-SP';
+    const requestedSource = sourceId ? String(sourceId).toUpperCase().trim() : null;
+    const requestedState = stateCode ? String(stateCode).toUpperCase().trim() : null;
+
+    let sourceFilter = sql`1=1`;
+    if (requestedState) {
+      sourceFilter = sql`(UPPER(state_code) = ${requestedState} OR UPPER(source_id) LIKE ${'%' + requestedState + '%'})`;
+    } else if (requestedSource) {
+      sourceFilter = sql`UPPER(source_id) = ${requestedSource}`;
+    }
 
     let candidates: any[] = [];
 
@@ -334,7 +359,7 @@ app.get("/api/map/occurrences", publicApiLimiter, async (req, res) => {
         SELECT id, category, subcategory, source_category, source_record_id, municipality_name, original_address, source_data,
                latitude, longitude, occurred_at, year, month
         FROM ${securityOccurrences}
-        WHERE UPPER(source_id) = ${canonicalSource}
+        WHERE ${sourceFilter}
           AND latitude BETWEEN ${bMinLat} AND ${bMaxLat}
           AND longitude BETWEEN ${bMinLon} AND ${bMaxLon}
           ${category ? sql`AND (category = ${String(category)} OR source_category ILIKE ${'%' + String(category) + '%'})` : sql``}
@@ -351,7 +376,7 @@ app.get("/api/map/occurrences", publicApiLimiter, async (req, res) => {
         SELECT id, category, subcategory, source_category, source_record_id, municipality_name, original_address, source_data,
                latitude, longitude, occurred_at, year, month
         FROM ${securityOccurrences}
-        WHERE UPPER(source_id) = ${canonicalSource}
+        WHERE ${sourceFilter}
           AND latitude BETWEEN ${bbox.minLat} AND ${bbox.maxLat}
           AND longitude BETWEEN ${bbox.minLon} AND ${bbox.maxLon}
           ${category ? sql`AND (category = ${String(category)} OR source_category ILIKE ${'%' + String(category) + '%'})` : sql``}
@@ -369,12 +394,12 @@ app.get("/api/map/occurrences", publicApiLimiter, async (req, res) => {
         }
       }
     } else {
-      // Retorna as ocorrências mais recentes com coordenadas da SSP-SP
+      // Retorna as ocorrências mais recentes com coordenadas
       candidates = await db.execute(sql`
         SELECT id, category, subcategory, source_category, source_record_id, municipality_name, original_address, source_data,
                latitude, longitude, occurred_at, year, month
         FROM ${securityOccurrences}
-        WHERE UPPER(source_id) = ${canonicalSource}
+        WHERE ${sourceFilter}
           AND latitude IS NOT NULL AND longitude IS NOT NULL
           ${category ? sql`AND (category = ${String(category)} OR source_category ILIKE ${'%' + String(category) + '%'})` : sql``}
         ORDER BY occurred_at DESC
@@ -811,6 +836,31 @@ app.post("/api/admin/ingestion/discovery", async (req, res) => {
   }
 });
 
+// Endpoint para consulta de Provedores Estaduais registrados na nova arquitetura canônica
+app.get("/api/providers", (req, res) => {
+  try {
+    const providers = StateRegistry.list().map(p => ({
+      stateCode: p.stateCode,
+      providerName: p.providerName,
+      datasets: p.getDatasets ? p.getDatasets() : [],
+      stateDefinition: StateRegistry.getStateDefinition(p.stateCode)
+    }));
+    res.json({ count: providers.length, providers });
+  } catch (error: any) {
+    res.status(500).json({ error: "Falha ao listar provedores: " + error.message });
+  }
+});
+
+// Endpoint para consulta de Metadados Canônicos de Estados Brasileiros
+app.get("/api/states", (req, res) => {
+  try {
+    const states = StateRegistry.listDefinitions();
+    res.json({ count: states.length, states });
+  } catch (error: any) {
+    res.status(500).json({ error: "Falha ao listar estados: " + error.message });
+  }
+});
+
 // Phase 11: Pipeline Automation & Operational Telemetry
 app.get("/api/admin/pipeline/operational-status", async (req, res) => {
   try {
@@ -826,10 +876,41 @@ app.get("/api/admin/pipeline/operational-status", async (req, res) => {
 app.post("/api/admin/pipeline/trigger-ssp", async (req, res) => {
   try {
     const force = Boolean(req.body?.force);
-    const result = await PipelineAutomationService.runAutomationCycle({ force });
+    const stateCode = (req.body?.stateCode || 'SP').toUpperCase();
+    const sourceId = req.body?.sourceId || 'SSP-SP';
+    const result = await PipelineAutomationService.runAutomationCycle({ stateCode, sourceId, force });
     res.json(result);
   } catch (error: any) {
-    logger.error("Failed to trigger SSP automation cycle", { error: error.message });
+    logger.error("Failed to trigger pipeline automation cycle for SP", { error: error.message });
+    res.status(500).json({ error: "Falha ao disparar automação: " + error.message });
+  }
+});
+
+app.post("/api/admin/pipeline/trigger", async (req, res) => {
+  try {
+    const force = Boolean(req.body?.force);
+    const rawState = req.body?.stateCode ? String(req.body.stateCode).toUpperCase().trim() : undefined;
+    const rawSource = req.body?.sourceId ? String(req.body.sourceId).toUpperCase().trim() : undefined;
+
+    if (!rawState && !rawSource) {
+      return res.status(400).json({ 
+        error: "Parâmetro obrigatório ausente. Forneça 'stateCode' ou 'sourceId' para disparar o pipeline." 
+      });
+    }
+
+    const stateCode = rawState || (rawSource ? StateRegistry.resolveStateBySource(rawSource) : undefined);
+    const sourceId = rawSource || (stateCode ? (stateCode === 'SP' ? 'SSP-SP' : `SSP-${stateCode}`) : undefined);
+
+    if (stateCode && !StateRegistry.isStateSupported(stateCode)) {
+      return res.status(400).json({ 
+        error: `Estado não suportado ou sem provedor registrado: ${stateCode}. Nenhum job executado.` 
+      });
+    }
+
+    const result = await PipelineAutomationService.runAutomationCycle({ stateCode: stateCode || undefined, sourceId: sourceId || undefined, force });
+    res.json(result);
+  } catch (error: any) {
+    logger.error("Failed to trigger pipeline automation cycle", { error: error.message });
     res.status(500).json({ error: "Falha ao disparar automação: " + error.message });
   }
 });

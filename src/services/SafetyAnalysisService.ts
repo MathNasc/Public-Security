@@ -2,6 +2,7 @@ import { db } from '../db/index.js';
 import { geographicMunicipalities, securityOccurrences, securityIndicators, dataImports, dataSources } from '../db/schema.js';
 import { eq, and, sql, desc, or, gte, lte } from "drizzle-orm";
 import { TAXONOMY_VERSION, normalizeLegacyCategory, getCategoryGroup, normalizeLegacyCategoryFix, getCategoryGroupFix, CanonicalCategory, CategoryGroup } from './Taxonomy.js';
+import { StateRegistry } from '../ingestion/core/index.js';
 import { getPrimarySource } from '../ingestion/pipeline/SourcePriority.js';
 import { GeoNormalizationService } from './GeoNormalizationService.js';
 import { getBoundingBox, haversineDistance } from '../lib/geo.js';
@@ -116,6 +117,27 @@ export interface AnalysisResult {
 export class SafetyAnalysisService {
   private geoNorm = new GeoNormalizationService();
 
+  static async analyzeLocation(options: {
+    latitude?: number;
+    longitude?: number;
+    lat?: number;
+    lon?: number;
+    radiusMeters?: number;
+    periodMonths?: number;
+    periodString?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<AnalysisResult> {
+    const instance = new SafetyAnalysisService();
+    return instance.analyze({
+      lat: options.latitude ?? options.lat ?? 0,
+      lon: options.longitude ?? options.lon ?? 0,
+      radiusMeters: options.radiusMeters ?? 1000,
+      periodMonths: options.periodMonths ?? 12,
+      periodString: options.periodString ?? "12m"
+    });
+  }
+
   async analyze(req: AnalysisRequest): Promise<AnalysisResult> {
     const lat = req.lat ?? (req as any).location?.latitude;
     const lon = req.lon ?? (req as any).location?.longitude;
@@ -192,21 +214,33 @@ export class SafetyAnalysisService {
       resolutionMethod: muni.resolutionMethod || 'nearest_centroid'
     };
 
-    // 2. Determinação da fonte oficial exclusiva (SSP-SP)
-    if (geoId.stateAcronym !== 'SP') {
+    // 2. Determinação da fonte oficial através do StateRegistry
+    if (!geoId.stateAcronym) {
       return this.emptyResult(
         startDate,
         endDate,
         periodString,
         radiusMeters,
         geoId,
-        `Esta versão do Public Security opera exclusivamente com dados oficiais da Secretaria de Segurança Pública de São Paulo (SSP-SP). Não há registros oficiais disponíveis para este local fora do estado de São Paulo.`
+        `Não foi possível identificar a unidade federativa (UF) para as coordenadas informadas.`
+      );
+    }
+    const stateCode = geoId.stateAcronym.toUpperCase().trim();
+    const provider = StateRegistry.resolveProviderByState(stateCode);
+    if (!provider) {
+      return this.emptyResult(
+        startDate,
+        endDate,
+        periodString,
+        radiusMeters,
+        geoId,
+        `Esta versão opera exclusivamente com dados oficiais de provedores estaduais registrados. Não há registros oficiais disponíveis para este local (${stateCode}).`
       );
     }
 
-    const primarySourceId = 'SSP-SP';
+    const primarySourceId = stateCode === 'SP' ? 'SSP-SP' : (provider.stateCode ? `SSP-${provider.stateCode}` : provider.providerName);
 
-    // 3. Busca de ocorrências exatas e indicadores municipais da SSP-SP
+    // 3. Busca de ocorrências exatas e indicadores municipais do StateProvider
     let indicators: IndicatorValue[] = [];
     let exactOccurrences: any[] = [];
     let granularity: 'coordinate' | 'municipality' | 'state' | 'national' = 'municipality';
@@ -399,8 +433,8 @@ export class SafetyAnalysisService {
       limitations,
       sources: [{
         id: effectiveSourceId,
-        name: 'Secretaria de Segurança Pública de São Paulo (SSP-SP)',
-        provider: 'Governo do Estado de São Paulo (SSP-SP)',
+        name: StateRegistry.getStateDefinition(provider.stateCode)?.agency || 'Secretaria de Segurança Pública de São Paulo (SSP-SP)',
+        provider: provider.providerName || 'Governo do Estado de São Paulo (SSP-SP)',
         updated_at: sourceMeta?.lastImportDate?.toISOString() || new Date().toISOString(),
         quality_score: qualityScore,
         isFallback: fallbackInfo.used
@@ -408,7 +442,7 @@ export class SafetyAnalysisService {
       indicators,
       exactOccurrences,
       trend: trendData,
-      methodology: `${TAXONOMY_VERSION}; Metodologia de Ponderação Gravimétrica por Severidade Penal e Taxa Territorial/Demográfica baseada exclusivamente em dados oficiais da SSP-SP.`,
+      methodology: `${TAXONOMY_VERSION}; Metodologia de Ponderação Gravimétrica por Severidade Penal e Taxa Territorial/Demográfica baseada exclusivamente em dados oficiais (${provider.providerName}).`,
       dataAbsenceNotice: 'Ausência de registros oficiais reflete falta de cobertura ou dados não publicados pelo órgão responsável e NÃO deve ser interpretada como inexistência de crimes.'
     };
   }
@@ -678,7 +712,7 @@ export class SafetyAnalysisService {
                COALESCE(longitude, ST_X(geom::geometry)) as longitude, 
                occurred_at, year, month
         FROM ${securityOccurrences}
-        WHERE (UPPER(source_id) = ${canonicalSource} OR UPPER(source_id) LIKE '%SP%')
+        WHERE (UPPER(source_id) = ${canonicalSource} OR UPPER(source_id) LIKE ${'%' + canonicalSource + '%'})
           AND geom IS NOT NULL
           AND ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)::geography) <= ${radiusMeters}
         ORDER BY occurred_at DESC
@@ -703,7 +737,7 @@ export class SafetyAnalysisService {
         SELECT id, category, subcategory, source_category, source_record_id, municipality_name, original_address, source_data,
                latitude, longitude, occurred_at, year, month
         FROM ${securityOccurrences}
-        WHERE (UPPER(source_id) = ${canonicalSource} OR UPPER(source_id) LIKE '%SP%')
+        WHERE (UPPER(source_id) = ${canonicalSource} OR UPPER(source_id) LIKE ${'%' + canonicalSource + '%'})
           AND latitude BETWEEN ${bbox.minLat} AND ${bbox.maxLat}
           AND longitude BETWEEN ${bbox.minLon} AND ${bbox.maxLon}
         ORDER BY occurred_at DESC

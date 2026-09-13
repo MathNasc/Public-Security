@@ -1,13 +1,32 @@
+import { StateRegistry } from '../core/index.js';
+
 export type StateCode = string;
 export type DatasetCategory = string;
 
 /**
- * Defines which source is considered the primary, most reliable, or most granular
- * data source for a given state and category.
- * If a state has a direct SSP integration, we prefer it over SINESP.
+ * Define qual fonte é a primária/preferencial para um determinado Estado.
+ * Não utiliza fallbacks silenciosos para São Paulo quando o Estado for outro.
  */
-export function getPrimarySource(state: StateCode, category?: DatasetCategory): string {
-  // If we have direct state integrations, prefer the state SSP/SES/SEGUP source over national aggregates.
+export function getPrimarySource(state: StateCode, category?: DatasetCategory): string | null {
+  if (!state) return null;
+  const cleanState = state.toUpperCase().trim();
+
+  // 1. Consulta StateRegistry
+  const stateDef = StateRegistry.getStateDefinition(cleanState);
+  if (stateDef && stateDef.primaryProviderId) {
+    return stateDef.primaryProviderId;
+  }
+
+  const provider = StateRegistry.get(cleanState);
+  if (provider) {
+    if (typeof provider.getStateDefinition === 'function') {
+      const def = provider.getStateDefinition();
+      if (def?.primaryProviderId) return def.primaryProviderId;
+    }
+    return `SSP-${cleanState}`;
+  }
+
+  // 2. Mapeamento declarativo oficial por secretaria estadual
   const statePreferredSources: Record<string, string> = {
     'SP': 'SSP-SP',
     'RJ': 'ISP-RJ',
@@ -22,8 +41,9 @@ export function getPrimarySource(state: StateCode, category?: DatasetCategory): 
     'GO': 'SSP-GO',
   };
 
-  return statePreferredSources[state] || 'SSP-SP';
+  return statePreferredSources[cleanState] || null;
 }
+
 
 /**
  * Can be used in API layers to filter out duplicate universes.

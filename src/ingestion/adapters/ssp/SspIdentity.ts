@@ -123,6 +123,18 @@ export class SspIdentityService {
   }
 
   /**
+   * Helper unificado para geração direta de ID canônico SHA-256
+   */
+  static generateOccurrenceId(stateCode: string, record: any): string {
+    const anoBo = record.ANO_BO || record.anoBo || record.year || record.Ano || 0;
+    const numBo = record.NUM_BO || record.numBo || record.source_record_id || record.Total || '';
+    const delegacia = record.NOME_DELEGACIA_CIRCUNSCRICAO || record.delegacia || record.DELEGACIA_NOME || '';
+    const natureza = record.NATUREZA_APURADA || record.natureza || record.Natureza || '';
+    const rubrica = record.RUBRICA || record.rubrica || '';
+    return this.buildIdentity(anoBo, numBo, delegacia, natureza, rubrica).sourceRecordId;
+  }
+
+  /**
    * Validação de coordenadas territoriais (São Paulo e Brasil).
    * Coordenadas oficiais de SP: Lat (-25.5 a -19.5), Lon (-53.5 a -44.0).
    */

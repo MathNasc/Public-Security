@@ -1,6 +1,7 @@
 import { db } from '../../db/index.js';
 import { dataSources, dataDatasets, dataImports, securityOccurrences, securityIndicators } from '../../db/schema.js';
 import { eq, and, desc, sql, lte } from 'drizzle-orm';
+import { StateRegistry } from '../core/index.js';
 import { SspSpAdapter } from '../adapters/ssp/SspSpAdapter.js';
 import { JobManager } from '../pipeline/JobManager.js';
 import { rawStorage } from '../pipeline/Storage.js';
@@ -61,9 +62,9 @@ export class PipelineAutomationService {
   private static readonly DOWNLOAD_TIMEOUT_MS = 30 * 1000; // 30 segundos
 
   /**
-   * 1 & 2. Verificar atualização e Detectar arquivo novo para SSP-SP
+   * 1 & 2. Verificar atualização e Detectar arquivo novo via StateProvider
    */
-  static async checkForUpdates(forceCheck: boolean = false): Promise<{
+  static async checkForUpdates(forceCheckOrOptions: boolean | { stateCode?: string; sourceId?: string; force?: boolean } = false): Promise<{
     hasUpdate: boolean;
     reason: string;
     version?: string;
@@ -71,22 +72,47 @@ export class PipelineAutomationService {
     fileBuffer?: Buffer;
     filename?: string;
   }> {
+    const forceCheck = typeof forceCheckOrOptions === 'boolean' ? forceCheckOrOptions : !!forceCheckOrOptions.force;
+    const reqState = typeof forceCheckOrOptions === 'object' ? forceCheckOrOptions.stateCode : undefined;
+    const reqSource = typeof forceCheckOrOptions === 'object' ? forceCheckOrOptions.sourceId : undefined;
+
+    const stateCode = reqState || (reqSource ? StateRegistry.resolveStateBySource(reqSource) : undefined) || 'SP';
+    const sourceId = reqSource || (stateCode ? (stateCode === 'SP' ? 'SSP-SP' : `SSP-${stateCode.toUpperCase()}`) : 'SSP-SP');
+
+    const provider = StateRegistry.resolveProviderByState(stateCode) || StateRegistry.resolveProviderBySource(sourceId);
+    if (!provider) {
+      return {
+        hasUpdate: false,
+        reason: `Nenhum State Provider ativo ou registrado para o estado ${stateCode} (fonte: ${sourceId}).`
+      };
+    }
+
     const now = new Date();
-    console.log(`[PipelineAutomation] [SSP-SP] Verificando atualização oficial em ${now.toISOString()}...`);
+    console.log(`[PipelineAutomation] [${provider.providerName || sourceId}] Verificando atualização oficial em ${now.toISOString()}...`);
 
     // Atualiza timestamp de última tentativa na fonte
     await db.update(dataSources)
       .set({ lastAttempt: now })
-      .where(sql`lower(id) = 'ssp-sp'`);
+      .where(sql`lower(id) = lower(${sourceId})`);
 
-    // Busca dataset configurado para SSP-SP
-    const datasets = await db.select().from(dataDatasets).where(sql`lower(source_id) = 'ssp-sp'`);
+    // Busca dataset configurado para a fonte
+    const datasets = await db.select().from(dataDatasets).where(sql`lower(source_id) = lower(${sourceId})`);
     const dataset = datasets[0] || null;
 
-    // Descoberta dinâmica da versão oficial disponível na API da SSP-SP
-    const adapter = new SspSpAdapter();
-    const discovery = await adapter.discover();
-    const expectedVersion = discovery.version;
+    // Descoberta dinâmica da versão oficial disponível via Provider
+    let expectedVersion: string;
+    let downloadUrl: string | undefined;
+
+    try {
+      const discovery = await provider.discover();
+      expectedVersion = discovery.version;
+      downloadUrl = discovery.url;
+    } catch (err: any) {
+      return {
+        hasUpdate: false,
+        reason: `Falha na descoberta de versão para ${sourceId}: ${err.message}`
+      };
+    }
 
     // 3. Evitar baixar arquivo inalterado
     if (!forceCheck && dataset && dataset.lastVersion === expectedVersion && dataset.status === 'healthy') {
@@ -94,14 +120,14 @@ export class PipelineAutomationService {
       const completedJobs = await db.select()
         .from(dataImports)
         .where(and(
-          sql`lower(source_id) = 'ssp-sp'`,
+          sql`lower(source_id) = lower(${sourceId})`,
           eq(dataImports.status, 'COMPLETED')
         ))
         .orderBy(desc(dataImports.createdAt))
         .limit(1);
 
       if (completedJobs.length > 0) {
-        console.log(`[PipelineAutomation] [SSP-SP] Versão ${expectedVersion} já processada com sucesso (Job: ${completedJobs[0].id}). Download inalterado evitado.`);
+        console.log(`[PipelineAutomation] [${sourceId}] Versão ${expectedVersion} já processada com sucesso (Job: ${completedJobs[0].id}). Download inalterado evitado.`);
         return {
           hasUpdate: false,
           reason: `Arquivo inalterado. Versão ${expectedVersion} já ingerida com sucesso.`
@@ -109,20 +135,25 @@ export class PipelineAutomationService {
       }
     }
 
-    // 4. Baixar com timeout diretamente do canal oficial da SSP-SP
+    // 4. Baixar com timeout diretamente do canal oficial
     const tempDir = path.join(process.cwd(), 'data/temp');
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
-    const filename = `ssp_sp_mensal_${expectedVersion}.csv`;
+    const filename = `${sourceId.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${expectedVersion}.csv`;
     const tempFilePath = path.join(tempDir, filename);
 
     try {
-      console.log(`[PipelineAutomation] [SSP-SP] Iniciando download automatizado de: ${discovery.url}`);
-      await adapter.download(tempFilePath);
+      console.log(`[PipelineAutomation] [${sourceId}] Iniciando download automatizado de: ${downloadUrl}`);
+      if (typeof (provider as any).download === 'function') {
+        await (provider as any).download(tempFilePath);
+      } else {
+        const adapter = (provider as any).getAdapter?.() || new SspSpAdapter();
+        await adapter.download(tempFilePath);
+      }
     } catch (err: any) {
-      console.error(`[PipelineAutomation] Falha na aquisição do dado oficial da SSP-SP:`, err.message);
+      console.error(`[PipelineAutomation] Falha na aquisição do dado oficial de ${sourceId}:`, err.message);
       return {
         hasUpdate: false,
-        reason: `Falha na aquisição automática da SSP-SP: ${err.message}`
+        reason: `Falha na aquisição automática de ${sourceId}: ${err.message}`
       };
     }
 
@@ -137,16 +168,16 @@ export class PipelineAutomationService {
 
     return {
       hasUpdate: true,
-      reason: `Nova publicação oficial identificada e baixada da SSP-SP para o período ${expectedVersion}.`,
+      reason: `Nova publicação oficial identificada e baixada de ${provider.providerName} para o período ${expectedVersion}.`,
       version: expectedVersion,
-      downloadUrl: discovery.url,
+      downloadUrl: downloadUrl,
       fileBuffer: content,
       filename
     };
   }
 
   /**
-   * Executa o ciclo completo da automação de forma autônoma para SSP-SP:
+   * Executa o ciclo completo da automação de forma autônoma para o StateProvider solicitado:
    * 1. Verificar atualização
    * 2. Detectar arquivo novo
    * 3. Evitar download inalterado
@@ -166,7 +197,7 @@ export class PipelineAutomationService {
    * 17. Detectar jobs presos
    * 18. Evitar execução duplicada
    */
-  static async runAutomationCycle(options: { force?: boolean } = {}): Promise<{
+  static async runAutomationCycle(options: { stateCode?: string; sourceId?: string; force?: boolean } = {}): Promise<{
     success: boolean;
     jobId?: string;
     isDuplicate?: boolean;
@@ -175,23 +206,37 @@ export class PipelineAutomationService {
     reason?: string;
   }> {
     const startTime = Date.now();
-    console.log('[PipelineAutomation] Iniciando ciclo de automação oficial para SSP-SP...');
+    const reqState = options.stateCode;
+    const reqSource = options.sourceId;
+
+    const stateCode = reqState || (reqSource ? StateRegistry.resolveStateBySource(reqSource) : undefined) || 'SP';
+    const sourceId = reqSource || (stateCode ? (stateCode === 'SP' ? 'SSP-SP' : `SSP-${stateCode.toUpperCase()}`) : 'SSP-SP');
+    const provider = StateRegistry.resolveProviderByState(stateCode) || StateRegistry.resolveProviderBySource(sourceId);
+
+    if (!provider) {
+      return {
+        success: false,
+        error: `Nenhum State Provider registrado para o estado ${stateCode} ou fonte ${sourceId}.`
+      };
+    }
+
+    console.log(`[PipelineAutomation] Iniciando ciclo de automação oficial para ${provider.providerName || sourceId}...`);
 
     // 17. Detectar e recuperar jobs presos antes de iniciar
     await this.recoverStuckJobs();
 
     // 18. Evitar execução duplicada (Mutex por fonte)
-    const isBusy = await this.isSourceBusy('SSP-SP');
+    const isBusy = await this.isSourceBusy(sourceId);
     if (isBusy && !options.force) {
-      console.warn('[PipelineAutomation] [SSP-SP] Já existe um Job ativo em fila ou execução. Execução duplicada prevenida.');
+      console.warn(`[PipelineAutomation] [${sourceId}] Já existe um Job ativo em fila ou execução. Execução duplicada prevenida.`);
       return {
         success: false,
-        reason: 'Execução duplicada prevenida: já existe um job em andamento para SSP-SP.'
+        reason: `Execução duplicada prevenida: já existe um job em andamento para ${sourceId}.`
       };
     }
 
     // 1, 2, 3. Verificar atualização, detectar arquivo novo, evitar inalterado
-    const check = await this.checkForUpdates(options.force);
+    const check = await this.checkForUpdates({ stateCode, sourceId, force: options.force });
     if (!check.hasUpdate) {
       return {
         success: true,
@@ -201,12 +246,12 @@ export class PipelineAutomationService {
 
     // 4, 5, 6. Baixar / Carregar com validação e Checksum
     const fileBuffer = check.fileBuffer!;
-    const filename = check.filename || `ssp-sp-${check.version}.csv`;
+    const filename = check.filename || `${sourceId.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${check.version}.csv`;
 
     // 5. Validar conteúdo mínimo
     if (!fileBuffer || fileBuffer.length < 50) {
       const err = 'Quality Gate: Conteúdo do arquivo é inválido ou vazio (menos de 50 bytes).';
-      await this.recordSourceFailure('SSP-SP', err);
+      await this.recordSourceFailure(sourceId, err);
       return { success: false, error: err };
     }
 
@@ -214,14 +259,14 @@ export class PipelineAutomationService {
     const checksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
     // 7. Armazenar RAW no diretório imutável
-    const datasetId = 'ocorrencias_criminais_sp';
+    const datasetId = `ocorrencias_criminais_${stateCode.toLowerCase()}`;
     const version = check.version || new Date().toISOString().substring(0, 7);
     const stored = await rawStorage.put(datasetId, version, filename, fileBuffer);
     console.log(`[PipelineAutomation] Arquivo RAW persistido em: ${stored.path} (Checksum: ${checksum})`);
 
     // 8. Criar Job com idempotência
     const jobResult = await JobManager.createJob({
-      sourceId: 'SSP-SP',
+      sourceId,
       datasetId,
       rawFilePath: stored.path,
       originalFilename: filename,
@@ -231,7 +276,7 @@ export class PipelineAutomationService {
       originUrl: check.downloadUrl,
       sourceType: 'official_download',
       period: version,
-      stateCode: 'SP',
+      stateCode: provider?.stateCode || stateCode,
       environment: 'production',
       isOfficialPublication: true,
       isEligibleForProductionAutomation: true,

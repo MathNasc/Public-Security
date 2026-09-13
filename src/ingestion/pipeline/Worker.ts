@@ -9,6 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 
+import { StateRegistry } from '../core/index.js';
 import { SspSpAdapter } from '../adapters/ssp/SspSpAdapter.js';
 import { SspSpHistoricalCatalogAdapter } from '../adapters/ssp/SspSpHistoricalCatalogAdapter.js';
 import { StreamingXlsxParser } from '../parsers/StreamingXlsxParser.js';
@@ -486,6 +487,18 @@ export class IngestionWorker {
   }
 
   private selectAdapter(sourceId: string): any {
+    // 1. Resolução via State Registry canônico
+    const provider = StateRegistry.resolveBySource(sourceId);
+    if (provider) {
+      if (sourceId === 'SSP-SP' || sourceId === 'SP') {
+        return new SspSpAdapter();
+      }
+      if (sourceId === 'SSP-SP-HISTORICAL' || sourceId === 'SSP-SP-MDIP' || sourceId === 'SSP-SP-SP-DADOS') {
+        return new SspSpHistoricalCatalogAdapter();
+      }
+    }
+
+    // 2. Registro de adaptadores legados
     switch (sourceId) {
       case 'SSP-SP': return new SspSpAdapter();
       case 'SSP-SP-HISTORICAL':
@@ -526,6 +539,9 @@ export class IngestionWorker {
   private async insertBatch(sourceId: string, records: any[], metrics: IngestionMetrics) {
     if (records.length === 0) return;
     const target = records[0].target;
+    const resolvedStateCode = StateRegistry.resolveStateBySource(sourceId) || null;
+    const stateDef = resolvedStateCode ? StateRegistry.getStateDefinition(resolvedStateCode) : undefined;
+    const resolvedStateName = stateDef?.name || (resolvedStateCode ? `Estado ${resolvedStateCode}` : null);
     
     if (target === 'occurrences') {
       const valuesToInsert = records.map(r => r.data).map(r => ({
@@ -534,8 +550,8 @@ export class IngestionWorker {
         datasetId: r.datasetId || r.dataset_id || 'ocorrencias_criminais',
         sourceRecordId: r.sourceRecordId || r.source_record_id,
         country: r.country || 'BR',
-        stateCode: r.stateCode || r.state_code || 'SP',
-        stateName: r.stateName || r.state_name || 'São Paulo',
+        stateCode: r.stateCode || r.state_code || resolvedStateCode,
+        stateName: r.stateName || r.state_name || resolvedStateName,
         municipalityCode: r.municipalityCode || r.municipality_code || null,
         municipalityName: r.municipalityName || r.municipality_name || null,
         category: r.category,
@@ -565,7 +581,7 @@ export class IngestionWorker {
         id: r.id || crypto.randomUUID(),
         sourceId: r.sourceId || sourceId,
         datasetId: r.datasetId || 'indicadores_municipais',
-        stateCode: r.stateCode || (sourceId === 'SSP-SP' ? 'SP' : 'BR'),
+        stateCode: r.stateCode || resolvedStateCode || 'UNKNOWN',
         municipalityCode: r.municipalityCode || "UNKNOWN",
         category: r.category,
         subcategory: r.subcategory || null,
