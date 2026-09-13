@@ -227,6 +227,27 @@ export class SafetyAnalysisService {
         used: false,
         type: 'none'
       };
+
+      // Se as ocorrências no raio indicam um município específico (ex: São Paulo), refina a identificação
+      const muniVotes = new Map<string, number>();
+      for (const occ of exactOccurrences) {
+        if (occ.municipality) {
+          const mNorm = occ.municipality.toUpperCase().trim();
+          muniVotes.set(mNorm, (muniVotes.get(mNorm) || 0) + 1);
+        }
+      }
+      if (muniVotes.size > 0) {
+        const topMuni = Array.from(muniVotes.entries()).sort((a, b) => b[1] - a[1])[0][0];
+        if (topMuni.includes('PAULO') || topMuni.includes('S.PAULO') || topMuni.includes('CAPITAL')) {
+          geoId.municipalityName = 'São Paulo';
+          geoId.ibgeCode = '3550308';
+          geoId.population = 11451245;
+        } else if (topMuni.includes('GUARULHOS')) {
+          geoId.municipalityName = 'Guarulhos';
+          geoId.ibgeCode = '3518800';
+          geoId.population = 1392000;
+        }
+      }
     } else {
       // Se não houver ocorrências pontuais com coordenadas no raio, busca indicadores municipais oficiais da SSP-SP
       indicators = await this.aggregateIndicators(geoId, startDate, endDate, primarySourceId);
@@ -610,7 +631,19 @@ export class SafetyAnalysisService {
 
       const numBo = extra.NUM_BO || extra.N_DO_BO || extra.NUMERO_BO || row.source_record_id || null;
       const anoBo = extra.ANO_BO || row.year || (row.occurred_at ? new Date(row.occurred_at).getUTCFullYear() : null);
-      const time = extra.HORA_OCORRENCIA_BO || extra.HORA_FATO || null;
+      const rawTime = extra.HORA_OCORRENCIA_BO || extra.HORA_FATO || null;
+      let time: string | null = null;
+      if (rawTime !== null && rawTime !== undefined) {
+        const numTime = Number(rawTime);
+        if (!isNaN(numTime) && numTime >= 0 && numTime < 1) {
+          const totalMinutes = Math.round(numTime * 24 * 60);
+          const hours = Math.floor(totalMinutes / 60) % 24;
+          const minutes = totalMinutes % 60;
+          time = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        } else {
+          time = String(rawTime).trim().substring(0, 5);
+        }
+      }
       const delegacia = extra.NOME_DELEGACIA_CIRCUNSCRICAO || extra.NOME_DELEGACIA || null;
       const bairro = extra.BAIRRO || null;
       const logradouro = extra.LOGRADOURO ? `${extra.LOGRADOURO}${extra.NUMERO_LOGRADOURO ? ', ' + extra.NUMERO_LOGRADOURO : ''}` : null;
