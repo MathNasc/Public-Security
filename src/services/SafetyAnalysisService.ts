@@ -667,6 +667,9 @@ export class SafetyAnalysisService {
       };
     };
 
+    const startTime = startDate.getTime();
+    const endTime = endDate.getTime();
+
     // 1. Tenta PostGIS se geom estiver preenchido e PostGIS disponível
     try {
       const results = await db.execute(sql`
@@ -679,10 +682,17 @@ export class SafetyAnalysisService {
           AND geom IS NOT NULL
           AND ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)::geography) <= ${radiusMeters}
         ORDER BY occurred_at DESC
-        LIMIT 300
+        LIMIT 600
       `);
       if (results && (results as any[]).length > 0) {
-        return (results as any[]).map(formatOccurrence);
+        const filteredPostGis = (results as any[])
+          .filter(row => {
+            if (!row.occurred_at) return true;
+            const occTime = new Date(row.occurred_at).getTime();
+            return occTime >= startTime && occTime <= endTime;
+          })
+          .map(formatOccurrence);
+        return filteredPostGis.slice(0, 300);
       }
     } catch {}
 
@@ -697,7 +707,7 @@ export class SafetyAnalysisService {
           AND latitude BETWEEN ${bbox.minLat} AND ${bbox.maxLat}
           AND longitude BETWEEN ${bbox.minLon} AND ${bbox.maxLon}
         ORDER BY occurred_at DESC
-        LIMIT 600
+        LIMIT 1000
       `);
 
       const filtered: ExactOccurrence[] = [];
@@ -705,6 +715,13 @@ export class SafetyAnalysisService {
         if (row.latitude !== null && row.longitude !== null) {
           const dist = haversineDistance(lat, lon, Number(row.latitude), Number(row.longitude));
           if (dist <= radiusMeters) {
+            // Filtro Temporal Rigoroso
+            if (row.occurred_at) {
+              const occTime = new Date(row.occurred_at).getTime();
+              if (occTime < startTime || occTime > endTime) {
+                continue;
+              }
+            }
             filtered.push(formatOccurrence(row));
           }
         }
