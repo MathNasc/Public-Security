@@ -145,6 +145,29 @@ function AutomationTab({ showToast }: { showToast: (msg: string, type?: "success
     }
   };
 
+  const [isSeeding, setIsSeeding] = useState(false);
+  const handleSeedOccurrences = async () => {
+    setIsSeeding(true);
+    try {
+      const res = await fetch("/api/admin/seed-occurrences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force: forceTrigger })
+      });
+      const resJson = await res.json();
+      if (resJson.success) {
+        showToast(resJson.message, "success");
+      } else {
+        showToast(resJson.error || "Falha ao popular ocorrências.", "error");
+      }
+      loadData();
+    } catch (e: any) {
+      showToast("Erro ao popular: " + e.message, "error");
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
   const handleReprocessJob = async (jobId: string) => {
     setIsReprocessing(jobId);
     try {
@@ -194,6 +217,14 @@ function AutomationTab({ showToast }: { showToast: (msg: string, type?: "success
           >
             <Server className="w-4 h-4"/>
             {isTriggering ? "Executando..." : "Disparar Automação SSP-SP"}
+          </button>
+          <button 
+            disabled={isSeeding}
+            onClick={handleSeedOccurrences}
+            className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+          >
+            <Database className="w-4 h-4"/>
+            {isSeeding ? "Populando..." : "Popular Ocorrências SP"}
           </button>
         </div>
       </div>

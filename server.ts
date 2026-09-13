@@ -29,6 +29,7 @@ import path from "path";
 import multer from "multer";
 import fs from "fs";
 import os from "os";
+import { seedOccurrencesIfEmpty } from './src/db/seedOccurrences.js';
 import { db } from "./src/db/index.js";
 import { getBoundingBox, haversineDistance } from "./src/lib/geo.js";
 import axios from "axios";
@@ -852,9 +853,24 @@ app.post("/api/admin/pipeline/reprocess/:jobId", async (req, res) => {
 
   
   
+app.post("/api/admin/seed-occurrences", async (req, res) => {
+  try {
+    const force = Boolean(req.body?.force);
+    const result = await seedOccurrencesIfEmpty(force);
+    res.json({ success: true, ...result });
+  } catch (error: any) {
+    res.status(500).json({ error: "Falha ao popular ocorrências: " + error.message });
+  }
+});
+
 async function startServer() {
   const ingestionWorker = new IngestionWorker();
   ingestionWorker.start().catch(console.error);
+
+  // Auto-seed de ocorrências se a tabela estiver vazia
+  seedOccurrencesIfEmpty(false).catch(err => {
+    console.error("[Startup] Auto-seed de ocorrências falhou:", err.message);
+  });
   
 
   if (process.env.NODE_ENV !== "production") {
