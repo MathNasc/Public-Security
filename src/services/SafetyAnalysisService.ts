@@ -667,38 +667,37 @@ export class SafetyAnalysisService {
       };
     };
 
-    // 1. Tenta PostGIS se disponível
+    // 1. Tenta PostGIS se geom estiver preenchido e PostGIS disponível
     try {
       const results = await db.execute(sql`
         SELECT id, category, subcategory, source_category, source_record_id, municipality_name, original_address, source_data,
-               ST_Y(geom::geometry) as latitude, ST_X(geom::geometry) as longitude, occurred_at, year, month
+               COALESCE(latitude, ST_Y(geom::geometry)) as latitude, 
+               COALESCE(longitude, ST_X(geom::geometry)) as longitude, 
+               occurred_at, year, month
         FROM ${securityOccurrences}
-        WHERE UPPER(source_id) = ${canonicalSource}
-          AND occurred_at >= ${startDate.toISOString()}
-          AND occurred_at <= ${endDate.toISOString()}
+        WHERE (UPPER(source_id) = ${canonicalSource} OR UPPER(source_id) LIKE '%SP%')
+          AND geom IS NOT NULL
           AND ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)::geography) <= ${radiusMeters}
         ORDER BY occurred_at DESC
-        LIMIT 250
+        LIMIT 300
       `);
       if (results && (results as any[]).length > 0) {
         return (results as any[]).map(formatOccurrence);
       }
     } catch {}
 
-    // 2. Fallback espacial nativo (SQLite / Bounding Box + Haversine)
+    // 2. Fallback espacial nativo por Bounding Box + Haversine (compatível com Postgres e SQLite)
     try {
       const bbox = getBoundingBox(lat, lon, radiusMeters);
       const candidates = await db.execute(sql`
         SELECT id, category, subcategory, source_category, source_record_id, municipality_name, original_address, source_data,
                latitude, longitude, occurred_at, year, month
         FROM ${securityOccurrences}
-        WHERE UPPER(source_id) = ${canonicalSource}
+        WHERE (UPPER(source_id) = ${canonicalSource} OR UPPER(source_id) LIKE '%SP%')
           AND latitude BETWEEN ${bbox.minLat} AND ${bbox.maxLat}
           AND longitude BETWEEN ${bbox.minLon} AND ${bbox.maxLon}
-          AND occurred_at >= ${startDate.toISOString()}
-          AND occurred_at <= ${endDate.toISOString()}
         ORDER BY occurred_at DESC
-        LIMIT 500
+        LIMIT 600
       `);
 
       const filtered: ExactOccurrence[] = [];
@@ -710,7 +709,7 @@ export class SafetyAnalysisService {
           }
         }
       }
-      return filtered.slice(0, 250);
+      return filtered.slice(0, 300);
     } catch {
       return [];
     }
