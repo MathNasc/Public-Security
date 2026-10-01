@@ -15,7 +15,18 @@ let rawConn = process.env.DATABASE_URL || process.env.POSTGRES_URL || "";
 const isDefaultLocalPg = rawConn.includes("localhost:5432") || rawConn.includes("127.0.0.1:5432");
 const isUnreachableSupabase = rawConn.includes("db.eykrzanfocirkbcbrbyp.supabase.co");
 const isFileDb = rawConn.startsWith("file:");
-const useLibsqlFallback = !rawConn || isDefaultLocalPg || isFileDb || isUnreachableSupabase;
+const isPlaceholder = 
+  rawConn.includes("YOUR_HOST") ||
+  rawConn.includes("YOUR_USER") ||
+  rawConn.includes("YOUR_PASSWORD") ||
+  rawConn.includes("YOUR_DBNAME") ||
+  rawConn.includes("example.com") ||
+  rawConn.includes("<") ||
+  rawConn.includes("[") ||
+  rawConn.includes("user:password@host") ||
+  rawConn.includes("user:pass@host");
+
+const useLibsqlFallback = !rawConn || isDefaultLocalPg || isFileDb || isUnreachableSupabase || isPlaceholder;
 
 let dbInstance: any;
 let queryClientInstance: any;
@@ -739,6 +750,37 @@ if (useLibsqlFallback) {
       });
     }
   }).catch(() => {});
+
+  libsqlClient.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS region_watchlists (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      latitude REAL NOT NULL,
+      longitude REAL NOT NULL,
+      radius_meters INTEGER NOT NULL,
+      last_score INTEGER,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS region_alerts (
+      id TEXT PRIMARY KEY,
+      watchlist_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      message TEXT NOT NULL,
+      is_read INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS generated_summaries (
+      id TEXT PRIMARY KEY,
+      cache_key TEXT NOT NULL UNIQUE,
+      summary TEXT NOT NULL,
+      model_used TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `).catch(() => {});
 
   dbInstance = drizzleLibsql(libsqlClient, { schema });
   dbInstance.execute = async (query: any) => {

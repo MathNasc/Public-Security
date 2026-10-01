@@ -109,7 +109,7 @@ export class AiExplanationService {
   private ai: GoogleGenAI;
 
   constructor() {
-    this.ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    this.ai = new GoogleGenAI(process.env.GEMINI_API_KEY ? { apiKey: process.env.GEMINI_API_KEY } : {});
   }
 
   /**
@@ -218,8 +218,8 @@ ${JSON.stringify(sanitizedContext, null, 2)}
 ${context.userQuery ? `PERGUNTA / SOLICITAÇÃO DO USUÁRIO:\n"${context.userQuery}"` : 'TAREFA: Gere um resumo explicativo analítico, claro, objetivo e neutro dos indicadores do contexto.'}`;
 
     const modelsToTry = [
-      'gemini-3.6-flash',
-      'gemini-3.1-pro-preview'
+      'gemini-2.5-flash',
+      'gemini-2.5-pro'
     ];
 
     for (const modelName of modelsToTry) {

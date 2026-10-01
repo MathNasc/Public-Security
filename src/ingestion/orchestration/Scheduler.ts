@@ -40,7 +40,7 @@ export class Scheduler {
       // 3. Recuperação de jobs presos
       await this.recoverStuckJobs();
     } catch (e: any) {
-      if (e.message && e.message.includes("ENOTFOUND")) {
+      if (e.message && (e.message.includes("ENOTFOUND") || e.message.includes("EAI_AGAIN") || e.message.includes("ECONNREFUSED") || e.message.includes("ETIMEDOUT"))) {
         console.warn("[Scheduler] Banco de dados offline ou inacessível no ambiente atual.");
       } else {
         console.error("[Scheduler] Error in tick:", e);
