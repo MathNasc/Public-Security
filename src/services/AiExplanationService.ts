@@ -218,8 +218,8 @@ ${JSON.stringify(sanitizedContext, null, 2)}
 ${context.userQuery ? `PERGUNTA / SOLICITAÇÃO DO USUÁRIO:\n"${context.userQuery}"` : 'TAREFA: Gere um resumo explicativo analítico, claro, objetivo e neutro dos indicadores do contexto.'}`;
 
     const modelsToTry = [
-      'gemini-2.5-flash',
-      'gemini-2.5-pro'
+      'gemini-3.8-flash',
+      'gemini-3.1-pro-preview'
     ];
 
     for (const modelName of modelsToTry) {
